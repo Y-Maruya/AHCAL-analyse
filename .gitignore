@@ -4,3 +4,7 @@
 /obj
 /build
 /bin
+/CMakeF*
+Makefile
+lib*
+cmake*

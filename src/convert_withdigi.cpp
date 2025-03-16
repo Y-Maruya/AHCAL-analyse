@@ -312,7 +312,7 @@ int raw2Root::Digitize(string str_dat, string str_ped, string str_dac, string st
                     gain_plat[i_layer][i_chip][i_chan] = ref_gain_plat;
                 if (Sigma[i_layer][i_chip][i_chan] < 0)
                     Sigma[i_layer][i_chip][i_chan] = ref_sigma;
-                if (chi2_ndf[layer][chip][channel] < 20 || NDF[layer][chip][channel] <= 3 || SPE[layer][chip][channel] < 15)
+                if (chi2_ndf[layer][chip][channel] < 20 || NDF[layer][chip][channel] <= 3 || SPE[layer][chip][channel] > 15)
                 {
                     mean_gain += SPE[layer][chip][channel];
                     n_good++;
@@ -324,6 +324,9 @@ int raw2Root::Digitize(string str_dat, string str_ped, string str_dac, string st
                 if (chi2_ndf[layer][chip][channel] >= 20 || SPE[layer][chip][channel] < mean_gain - 5 || SPE[layer][chip][channel] > mean_gain + 5 || NDF[layer][chip][channel] <= 3 || SPE[layer][chip][channel] < 15)
                 {
                     SPE[layer][chip][channel] = mean_gain;
+                    if(n_good==0){
+                        std::cout << "n_good == 0"<<std::endl;
+                    }
                 }
             }
         }
@@ -390,7 +393,7 @@ int raw2Root::Digitize(string str_dat, string str_ped, string str_dac, string st
     // cout << endl;
     return 1;
 }
-double raw2Root::digi(double energy, double sipm_energy, double &HG, double &LG, int cid)
+double raw2Root::digi_cal(double energy, double sipm_energy, double &HG, double &LG, int cid)
 {
     decode_cellid(cid, layer, chip, channel);
     // energy += sipm_energy / 10 * 1e6 / 3.6 / _MIP[layer][chip][channel] * SPE[layer][chip][channel] * MIP_E;
@@ -418,8 +421,9 @@ double raw2Root::digi(double energy, double sipm_energy, double &HG, double &LG,
     ///////////////////////////////////////////
     if (n_photoelectron >= 15000)
     {
-        cout << n_photoelectron << endl;
+        // cout << n_photoelectron << endl;
         n_photoelectron = 14999;
+        //6350
     }
     int n_fired;
     if (n_photoelectron == 0)
@@ -495,7 +499,16 @@ double raw2Root::digi(double energy, double sipm_energy, double &HG, double &LG,
     }
     else
     {
-        hitE=( LG- ped_low[layer][chip][channel] )*MIP_E/_MIP[layer][chip][channel];
+        hitE=( LG- ped_low[layer][chip][channel] )*MIP_E/_MIP[layer][chip][channel]*gain_ratio[layer][chip][channel];
+    }
+    if (hitE<0){
+        hitE=0;
+    }
+    if (std::isnan(hitE)){
+        std::cout << "hitE" << hitE<<std::endl;
+        std::cout << "HG: " << HG << " LG: " << LG << " ped_high: " << ped_high[layer][chip][channel] << " ped_low: " << ped_low[layer][chip][channel] << " MIP: " << _MIP[layer][chip][channel] << std::endl;
+        std::cout << "energy: " << energy << " n_fired: " << n_fired << " SPE: " << SPE[layer][chip][channel] << std::endl;
+        std::cout << "gain_ratio: " << gain_ratio[layer][chip][channel] << " gain_plat: " << gain_plat[layer][chip][channel] << " lowgain_plat: " << lowgain_plat[layer][chip][channel] << std::endl;
     }
     return hitE;
 }
@@ -526,7 +539,7 @@ void convert_caloroot_to_h5(const std::string& root_file_path, const std::string
     tree->Draw(">>elist", "ftagNulabel<4");
     TEventList *elist = (TEventList*)gDirectory->Get("elist");
     tree->SetEventList(elist);
-    SiPMResponseFit->SetParameters(3082.88, 1.35524, 4.0577, 0.0206382, 0.109543);
+    // SiPMResponseFit->SetParameters(3082.88, 1.35524, 4.0577, 0.0206382, 0.109543);
     std::cout << "Number of entries in the tree: " << elist->GetN() << std::endl;
     // Variables to hold the data
     // int ftagNulabel;
@@ -652,7 +665,7 @@ void convert_caloroot_to_h5(const std::string& root_file_path, const std::string
     std::vector<float> energy_deposit_AHCAL_data(batch_size * 40 * 18 * 18);
 
     raw2Root tw;
-    tw.Digitize("","../calibration/pedestal.root","../calibration/dac_v2.root","../calibration/mip.root","../calibration/spe.root","","../calibration/sipm_model/sipm_model_0.0xt.root","");
+    tw.Digitize("","./calibration/pedestal.root","./calibration/dac_v2.root","./calibration/mip.root","./calibration/spe.root","","./calibration/sipm_model/sipm_model_0.0xt.root","");
     // Loop over the entries in the tree in batches
     for (Long64_t start = 0; start < total_entries; start += batch_size) {
         Long64_t end = std::min(start + batch_size, total_entries);
@@ -709,7 +722,7 @@ void convert_caloroot_to_h5(const std::string& root_file_path, const std::string
                 Int_t CellID = (ID_Z - 1) * 1e5 + ChipID * 1e4 + MemoID * 1e2 + ChannelID;
                 double tmp_energy=vecHcalVisibleEdepCell->at(std::distance(vecHcalCellID->begin(), it));
                 double HG = 0, LG = 0;
-                double tmp_energy_digi = digi(tmp_energy, 0, HG, LG, CellID);
+                double tmp_energy_digi = tw.digi_cal(tmp_energy, 0, HG, LG, CellID);
                 if(energy_deposit_AHCAL_data[index*40*18*18+GetBin1d_AHCAL(ID_X-1,ID_Y-1,ID_Z-1)]>0){
                     std::cout<<"Error: energy deposit already exists"<<std::endl;
                 }else{

@@ -48,6 +48,7 @@ public:
     int EnergyCalib(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file);
     int Digitize(string str_dat, string str_ped, string str_dac, string str_MIP, string str_SPE, string str_lowgain_dac, string sipm_model, string output_file);
     int digi(double energy, double sipm_energy, double &HG, double &LG, int i);
+    double digi_cal(double energy, double sipm_energy, double &HG, double &LG, int i);
     int neEnergyCalib(string str_dat, string str_MIP, string output_file, string mode);
     int nCorrect(string str_dat, string str_MIP, string str_SPE, string output_file);
     int MCDigi(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file);

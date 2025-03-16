@@ -16,6 +16,7 @@ set(CMAKE_BUILD_TYPE Debug)
 #External packages
 find_package( ROOT COMPONENTS Matrix Hist RIO MathCore Physics Minuit)
 # find_package( yaml-cpp REQUIRED)
+find_package(HDF5 REQUIRED COMPONENTS C CXX)
 
 #set run time output directory as bin
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
@@ -23,6 +24,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 #Add include directories
 include_directories(src)
 include_directories(include)
+include_directories(${HDF5_INCLUDE_DIRS})
 # include_directories(${YAML_CPP_INCLUDE_DIR})
 #message("hey ${YAML_CPP_INCLUDE_DIR}")
 include(${ROOT_USE_FILE})
@@ -55,6 +57,7 @@ add_executable(pid src/PID.cxx)
 target_link_libraries(Calib ${ROOT_LIBRARIES})
 target_link_libraries(digi ${ROOT_LIBRARIES})
 target_link_libraries(nCalib ${ROOT_LIBRARIES})
+target_link_libraries(convert ${ROOT_LIBRARIES} ${HDF5_LIBRARIES})
 # target_link_libraries(satu_correct ${ROOT_LIBRARIES})
 target_link_libraries(mip ${ROOT_LIBRARIES})
 target_link_libraries(ped ${ROOT_LIBRARIES})
@@ -67,7 +70,6 @@ target_link_libraries(disp ${ROOT_LIBRARIES})
 target_link_libraries(disp2d ${ROOT_LIBRARIES})
 target_link_libraries(decode ${ROOT_LIBRARIES})
 target_link_libraries(pid ${ROOT_LIBRARIES} HBase PID_analyse)
-
 #Add scripts to make setup.sh to include hbuana into environment
 # execute_process(COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/config/setup.sh ${PROJECT_BINARY_DIR})
 # execute_process(COMMAND sed -i "s:PROJECTHERE:${CMAKE_CURRENT_SOURCE_DIR}:g" ${PROJECT_BINARY_DIR}/setup.sh)
