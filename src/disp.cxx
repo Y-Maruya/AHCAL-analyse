@@ -69,12 +69,12 @@ int main(int argc,char* argv[]){
 		h_display->SetTitle("entries_"+TString(nentries));
 		h_display->Reset();
 		for(int i=0;i<Hit_Energy->size();i++){
-			if(Hit_Energy->at(i)>0.5*MIP_E)
-			{
+			// if(Hit_Energy->at(i)>0.5*MIP_E)
+			// {
 				double e=Hit_Energy->at(i);
-				e=log(e+1)+10;
+				// e=log(e+1)+10;
 				h_display->Fill(Hit_Z->at(i),Hit_X->at(i),Hit_Y->at(i),e);
-			}
+			// }
 		}
 		// h_display->SetMinimum(20);
 		h_display->Draw("box2");

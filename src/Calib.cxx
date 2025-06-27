@@ -209,6 +209,7 @@ int raw2Root::EnergyCalib(string str_dat,string str_ped,string str_dac,string st
         tree_in->GetEntry(i);
         _Event_No=_triggerID;
         _Detector_ID=1;
+        int m = 0;
         for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
             if((hitTag->at(i_hit))==0) continue;
             _cellID.push_back(cellID->at(i_hit));
@@ -235,11 +236,13 @@ int raw2Root::EnergyCalib(string str_dat,string str_ped,string str_dac,string st
             // _Hit_Time.push_back(Hit_Time->at(i_hit));
             // cout << "test" << endl;
             Edep += hitE;
-            h2_HitMap->Fill(_Hit_X[i_hit],_Hit_Y[i_hit]);
+            // h2_HitMap->Fill(_Hit_X[i_hit],_Hit_Y[i_hit]);
+            h2_HitMap->Fill(_Hit_X[m],_Hit_Y[m]);
             if(hitE>500*MIP_E){
                 cout<<hitE/MIP_E<<" high energy alert "<<layer<<" "<<chip<<" "<<channel<<endl;
                 cout<<HG_Charge->at(i_hit)<<" "<<MIP[layer][chip][channel]<<" "<<gain_ratio[layer][chip][channel]<<endl;
             }
+            m++;
         }
         h_Edep->Fill(Edep/1000.);
         for (int i_c = 0; i_c < cherenkov->size(); ++i_c){
@@ -247,6 +250,7 @@ int raw2Root::EnergyCalib(string str_dat,string str_ped,string str_dac,string st
             _cherenkov.push_back(cherenkov->at(i_c));
         }
         _Digi_Energy=Edep;
+        std::cout<<"print debug"<<std::endl;
         tree_out->Fill();
     }
     fout->cd();

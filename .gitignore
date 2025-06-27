@@ -8,3 +8,9 @@
 Makefile
 lib*
 cmake*
+/Layer*
+/run*
+/layer*
+/*.png
+/*.pdf
+/*.root
