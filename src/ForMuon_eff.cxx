@@ -23,6 +23,7 @@
 #include "TLine.h"
 #include "TVirtualFitter.h"
 #include "TGraphErrors.h"
+#include "TGraphAsymmErrors.h"
 #include "TGraph.h"
 #include "TGaxis.h"
 #include "TH3D.h"
@@ -496,6 +497,15 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     TH1D *h_triggerID = new TH1D("h_triggerID","h_triggerID",1e9,0,1e9);
     tree_in->Draw("TriggerID>>h_triggerID");
     max_triggerID = GetMaxXWithContent(h_triggerID);
+    TCanvas *c_triggerID = new TCanvas("c_triggerID","c_triggerID",800,600);
+    h_triggerID->SetTitle("Trigger ID Distribution");
+    h_triggerID->GetXaxis()->SetTitle("Trigger ID");
+    h_triggerID->GetYaxis()->SetTitle("Counts");
+    h_triggerID->SetStats(0);
+    h_triggerID->GetXaxis()->SetRangeUser(0,max_triggerID+5);
+    h_triggerID->Draw();
+    c_triggerID->SetLogy();
+    c_triggerID->SaveAs("triggerID.png");
     TH1D *h_time = new TH1D("h_time","h_time",1e9,0,1e9);
     tree_in->Draw("Event_Time>>h_time");
     int max_time = GetMaxXWithContent(h_time);
@@ -850,14 +860,52 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     efficiency2->Draw();
     c5->SaveAs("MuonCandidate2_time.png");
     // c_eff2->SaveAs("MuonCandidate2_time_efficiency.png");
-    TCanvas *c6 = new TCanvas("c6","c6",5000,600);
+    TCanvas *c6 = new TCanvas("c6","c6",8000,600);
     efficiency3->SetTitle("Efficiency of 1/2 MIP in each cell; Layer*Chip*Channel; Efficiency");
     // efficiency3->SetLineColor(kRed);
     // efficiency3->SetMarkerColor(kRed);
     // efficiency3->SetMarkerStyle(20);
     // efficiency3->SetMarkerSize(0.5);
     efficiency3->Draw();
+    c6->Update();
+    auto graph = efficiency3->GetPaintedGraph();
+    graph->GetXaxis()->SetRangeUser(0, Layer_No*chip_No*channel_No);
+    graph->Draw("AP");
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        TLine *line = new TLine(i_layer*chip_No*channel_No, 0, i_layer*chip_No*channel_No, 1);
+        line->SetLineColor(kRed);
+        line->SetLineStyle(2);
+        line->Draw("same");
+        TLatex *latex_layer = new TLatex();
+        latex_layer->SetTextSize(0.03);
+        latex_layer->SetTextFont(42);
+        latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.05, Form("Layer %d", i_layer));
+    }
+    c6->Update();
+    c6->Modified();
     c6->SaveAs("MuonCandidate2_efficiency3.png");
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        TCanvas *c1 = new TCanvas(Form("c1_layer%d",i_layer),Form("c1_layer%d",i_layer),800,600);
+        graph->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
+        graph->SetTitle(Form("Efficiency of Layer %d; Chip*Channel; Efficiency", i_layer));
+        graph->Draw("AP");
+        for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+            TLine *line = new TLine(i_layer*chip_No*channel_No + i_chip*channel_No, 0, i_layer*chip_No*channel_No + i_chip*channel_No, 1);
+            line->SetLineColor(kRed);
+            line->SetLineStyle(2);
+            line->Draw("same");
+            TLatex *latex_chip = new TLatex();
+            latex_chip->SetTextSize(0.03);
+            latex_chip->SetTextFont(42);
+            latex_chip->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ channel_No*0.3, 1.05, Form("Chip %d", i_chip));
+        }
+        c1->Update();
+        c1->Modified();
+        if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
+            gSystem->mkdir(Form("Layer_%d",i_layer), true);
+        }
+        c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency_layer%d.png", i_layer, i_layer));
+    }
     efficiency2->Write();
     h_chi2perndf_x->Write();
     h_slope_x->Write();

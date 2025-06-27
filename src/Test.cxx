@@ -413,7 +413,7 @@ int raw2Root::Test(string str_dat,string str_ped,string str_dac,string str_MIP,s
                         h2_ChMap->Fill(i_layer*chip_No+i_chip,i_chan,ThGood1peek);
                     }
                 }
-                if (i_layer == 39){
+                if (i_layer == 0){
                     TLine* h_ped_line = new TLine(ped_time[i_layer][chip][channel],0,ped_time[i_layer][chip][channel],h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximum());
                     TLine* h_mip_line = new TLine(MIP[i_layer][chip][channel]+ped_time[i_layer][chip][channel],0,MIP[i_layer][chip][channel]+ped_time[i_layer][chip][channel],h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximum());
                     h_ped_line->SetLineColor(kBlack);
