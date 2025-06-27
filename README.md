@@ -18,7 +18,7 @@ make
 ## Dependencies
 
 - ROOT
-- HDF5 (not need for faser analysis)
+- (HDF5 (not need for faser analysis, for converting the simulation data))
 
 With lxplus.cern.ch, no need to load LCG.
 You don't need to source something
