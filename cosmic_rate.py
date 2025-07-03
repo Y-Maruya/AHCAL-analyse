@@ -5,7 +5,7 @@ scint_size = 0.72  # Side length (m)
 scint_area = scint_size ** 2
 
 # Distance between scintillators
-distance = 1.0  # m
+distance = .16  # m
 
 # Number of samples
 N = 10**6
@@ -40,7 +40,7 @@ effective_solid_angle = np.sum(intensity_weight[hits]) / N * 2 * np.pi
 
 # Cosmic muon rate based on vertical flux (above 2 GeV, rough estimate)
 # Cosmic muon rate based on vertical flux (PDG, above 1 GeV)
-flux_above_2GeV = 20.6  # muons/m²/s/sr
+flux_above_2GeV = 31.48  # muons/m²/s/sr
 flux_above_1GeV = 70  # muons/m²/s/sr
 
 rate_above_2GeV = flux_above_2GeV * scint_area * effective_solid_angle

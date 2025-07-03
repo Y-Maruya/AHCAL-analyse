@@ -102,7 +102,7 @@ std::tuple <double, double, double, int> FitMuonTrack(TH2D* h2_display) {
     gr->SetTitle("Muon Track Fit;Z [mm];X [mm]");
     gr->SetMarkerStyle(0);
     gr->SetMarkerSize(0);
-    TF1* fitLine = new TF1("fitLine", "[0]*x + [1]", 0, 1600);
+    TF1* fitLine = new TF1("fitLine", "[0]*x + [1]", 0, 1602);
     gr->Fit(fitLine, "Q");
     gStyle->SetOptStat(0);
     gStyle->SetStatX(1.0);
@@ -242,18 +242,55 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     tree_in->SetBranchAddress("CellID",&CellID);
     tree_in->SetBranchAddress("MPV",&MPV);
     tree_in->SetBranchAddress("Tag",&Tag);
+    TH2D * h2_MPV = new TH2D("h2_MPV","h2_MPV",Layer_No*chip_No,0,Layer_No*chip_No,channel_No,0,channel_No);
+    TCanvas *c1 = new TCanvas("c1","c1",8000,600);
+    h2_MPV->Draw("COLZ");
     //tree_in->SetBranchAddress("mpv",&MPV);
     for (int i = 0; i < tree_in->GetEntries(); ++i){
         tree_in->GetEntry(i);
         decode_cellid(CellID,layer,chip,channel);
         //MIP[layer][chip][channel]=MPV - ped_time[layer][chip][channel];
         MIP[layer][chip][channel]=MPV;
-        if (Tag!=1)
+        if (Tag!=1){
             MIP[layer][chip][channel] = ref_MIP;
+        }
         // cout<<layer<<" "<<chip<<" "<<channel<<" "<<MPV<<endl;
+        h2_MPV->Fill(layer*chip_No+chip,channel,MPV);
         if (MIP[layer][chip][channel] < 200)
             cout << "abnormal MIP " << layer << " " << chip << " " << channel << " " << MPV << endl;
+
     }
+    h2_MPV->GetXaxis()->SetTitle("Layer*Chip");
+    h2_MPV->GetYaxis()->SetTitle("Channel");
+    h2_MPV->GetZaxis()->SetTitle("MPV");
+    h2_MPV->SetStats(0);
+    h2_MPV->Draw("COLZsame");
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        TLine *line = new TLine(i_layer*chip_No,0,i_layer*chip_No,channel_No);
+        line->SetLineColor(kBlack);
+        line->SetLineStyle(2);
+        line->SetLineWidth(1);
+        line->Draw("same");
+        TLatex *latex = new TLatex();
+        latex->SetTextSize(0.03);
+        latex->SetTextColor(kBlack);
+        latex->SetNDC();
+        latex->DrawLatex(i_layer*chip_No+0.5, channel_No+0.2, Form("Layer %d", i_layer));
+    }
+    for (int i = 0; i < tree_in->GetEntries(); ++i){
+        tree_in->GetEntry(i);
+        decode_cellid(CellID,layer,chip,channel);
+        if (Tag!=1){
+            MIP[layer][chip][channel] = ref_MIP;
+            TBox *box = new TBox(layer*chip_No+chip,channel,layer*chip_No+chip+1,channel+1);
+            box->SetFillColor(kRed);
+            box->SetFillStyle(3001);
+            box->Draw("same");
+        }
+
+    }
+    c1->SaveAs("h2_MPV.png");
+
     tree_in->Delete();
     fin->Close();
     //read dat
@@ -318,9 +355,9 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         }
         _triggerIDs.push_back(_triggerID);
         if (_Event_Time < last_Event_Time) {
-            num_Loop++;
+            // num_Loop++;
             cout<<"Event time Loop detected"<<endl;
-            _Event_Time = _Event_Time + num_Loop * (pow(2,30));
+            // _Event_Time = _Event_Time + num_Loop * (pow(2,30));
         }  
         _Detector_ID=1;
         int m = 0;
@@ -332,38 +369,38 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             decode_cellid(cellID->at(i_hit),layer,chip,channel);
             if((hitTag->at(i_hit))==0) h_ADC_hittag0[layer][chip][channel]->Fill(HG_Charge->at(i_hit));
             else h_ADC_hittag1[layer][chip][channel]->Fill(HG_Charge->at(i_hit));
-            if((hitTag->at(i_hit))==0) continue;
-            _cellID.push_back(cellID->at(i_hit));
+            // if((hitTag->at(i_hit))==0) continue;
+            // _cellID.push_back(cellID->at(i_hit));
             trigger_layer_hit[layer]++;
-            if( (HG_Charge->at(i_hit))-ped_time[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
-            {
-                hitE=( HG_Charge->at(i_hit) - ped_time[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-            }
-            // else
+            // if( (HG_Charge->at(i_hit))-ped_time[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
             // {
-            //     if(LG_Charge->at(i_hit)<800)
-            //         hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
-            //     else
-            //     {
-            //         hitE = -100;
-            //         // hitE = (800 - ped_charge[layer][chip][channel]) * gain_ratio[layer][chip][channel] * MIP_E / MIP[layer][chip][channel];
-            //     }
-            // } 
-            else hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
-            _Hit_E.push_back(hitE);
-            _Hit_X.push_back(Pos_X(channel,chip));
-            _Hit_Y.push_back(Pos_Y(channel,chip));
-            _Hit_Z.push_back(z_layer_cosmic(layer));
-            // _Hit_Time.push_back(Hit_Time->at(i_hit));
-            // cout << "test" << endl;
-            Edep += hitE;
-            // h2_HitMap->Fill(_Hit_X[i_hit],_Hit_Y[i_hit]);
-            h2_HitMap->Fill(_Hit_X[m],_Hit_Y[m]);
-            if(hitE>500*MIP_E){
-                cout<<hitE/MIP_E<<" high energy alert "<<layer<<" "<<chip<<" "<<channel<<endl;
-                cout<<HG_Charge->at(i_hit)<<" "<<MIP[layer][chip][channel]<<" "<<gain_ratio[layer][chip][channel]<<endl;
-            }
-            m++;
+            //     hitE=( HG_Charge->at(i_hit) - ped_time[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
+            // }
+            // // else
+            // // {
+            // //     if(LG_Charge->at(i_hit)<800)
+            // //         hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
+            // //     else
+            // //     {
+            // //         hitE = -100;
+            // //         // hitE = (800 - ped_charge[layer][chip][channel]) * gain_ratio[layer][chip][channel] * MIP_E / MIP[layer][chip][channel];
+            // //     }
+            // // } 
+            // else hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
+            // _Hit_E.push_back(hitE);
+            // _Hit_X.push_back(Pos_X(channel,chip));
+            // _Hit_Y.push_back(Pos_Y(channel,chip));
+            // _Hit_Z.push_back(z_layer_cosmic(layer));
+            // // _Hit_Time.push_back(Hit_Time->at(i_hit));
+            // // cout << "test" << endl;
+            // Edep += hitE;
+            // // h2_HitMap->Fill(_Hit_X[i_hit],_Hit_Y[i_hit]);
+            // h2_HitMap->Fill(_Hit_X[m],_Hit_Y[m]);
+            // if(hitE>500*MIP_E){
+            //     cout<<hitE/MIP_E<<" high energy alert "<<layer<<" "<<chip<<" "<<channel<<endl;
+            //     cout<<HG_Charge->at(i_hit)<<" "<<MIP[layer][chip][channel]<<" "<<gain_ratio[layer][chip][channel]<<endl;
+            // }
+            // m++;
         }
         h2_trigger_layer_hit->Fill(trigger_layer_hit[trigger_layer0],trigger_layer_hit[trigger_layer1]);
         h_Edep->Fill(Edep/1000.);
@@ -372,13 +409,13 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             _cherenkov.push_back(cherenkov->at(i_c));
         }
         _Digi_Energy=Edep;
-        tree_out->Fill();
+        // tree_out->Fill();
 
     }
-    fout->cd();
-    tree_out->Write();
-    h2_HitMap->Write();
-    h_Edep->Write();
+    // fout->cd();
+    // tree_out->Write();
+    // h2_HitMap->Write();
+    // h_Edep->Write();
     // TH3D *h3_sum0 = new TH3D("h3_sum0","h3_sum0",Layer_No,0,Layer_No,chip_No,0,chip_No,channel_No,0,channel_No);
     // TH3D *h3_sum1 = new TH3D("h3_sum1","h3_sum1",Layer_No,0,Layer_No,chip_No,0,chip_No,channel_No,0,channel_No);
     // for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
@@ -485,6 +522,10 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         for (int i_chip = 0; i_chip < chip_No; ++i_chip){
             for (int i_chan = 0; i_chan < channel_No; ++i_chan){
                 ped_new[i_layer][i_chip][i_chan] = h_ADC_hittag0[i_layer][i_chip][i_chan]->GetBinCenter(h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximumBin());
+                if (abs(ped_new[i_layer][i_chip][i_chan] - ped_time[i_layer][i_chip][i_chan]) > 50) {
+                    cout << "Pedestal shift detected: " << i_layer << " " << i_chip << " " << i_chan << " Old: " << ped_time[i_layer][i_chip][i_chan] << " New: " << ped_new[i_layer][i_chip][i_chan] << endl;
+                    ped_new[i_layer][i_chip][i_chan] = ped_time[i_layer][i_chip][i_chan];
+                }
             }
         }
     }
@@ -507,7 +548,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     c_triggerID->SetLogy();
     c_triggerID->SaveAs("triggerID.png");
     TH1D *h_time = new TH1D("h_time","h_time",1e9,0,1e9);
-    tree_in->Draw("Event_Time>>h_time");
+    tree_in->Draw("Event_Time>>h_time","Event_Time<1e5");
     int max_time = GetMaxXWithContent(h_time);
     cout<<"max_time = "<<max_time<<endl;
     TH1D *h_time_full = new TH1D("h_time_full","h_time_full;Event_Time",200,0, max_time+1);
@@ -520,6 +561,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     c2->SaveAs("MuonCandidate2.pdf(");
     TH1D *h_chi2perndf_x = new TH1D("h_chi2perndf_x","chi2/ndf of xz plane;chi2/ndf",200,0,50);
     TH1D *h_nHits = new TH1D("h_nHits_x","nHits;nHits",100,0,100);
+    TH2D *h2_nHits_costheta = new TH2D("h2_nHits_costheta","nHits vs cos#theta;nHits;cos#theta",100,0,100,20,0,1);
     TH1D *h_slope_x = new TH1D("h_slope_x","slope of xz plane;tan#theta",50,-1,1);
     TH1D *h_intercept_x = new TH1D("h_intercept_x","intercept of xz plane;intercept",100,-500,500);
     TH1D *h_triggerlayer0_x = new TH1D("h_triggerlayer0_x","trigger layer 0 x;X [mm]",100,-500,500);
@@ -539,7 +581,24 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     TH1D *h_phi_chi2_under5 = new TH1D("h_phi_chi2_under5","phi under chi2/ndf < 5;phi",100,-3.14,3.14);
     std::cout << "Start Looping over events" << std::endl;
     TEfficiency *efficiency3 = new TEfficiency("efficiency3","efficiency3",Layer_No*chip_No*channel_No,0,Layer_No*chip_No*channel_No);
+    TEfficiency *efficiency4 = new TEfficiency("efficiency4","efficiency4",Layer_No*chip_No*channel_No,0,Layer_No*chip_No*channel_No);
     _triggerIDs.clear();
+    TH2D *h2_MIP_double0 = new TH2D("h2_MIP_double0","h2_MIP_double0",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
+    TH2D *h2_MIP_double1 = new TH2D("h2_MIP_double1","h2_MIP_double1",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
+    TH2D *h2_skipped_Hit0 = new TH2D("h2_skipped_Hit0","h2_skipped_Hit0",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
+    TH2D *h2_skipped_Hit1 = new TH2D("h2_skipped_Hit1","h2_skipped_Hit1",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
+    TH2D *h2_ratio_passMIP0 = new TH2D("h2_ratio_passMIP0","h2_ratio_passMIP0",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
+    TH2D *h2_ratio_passMIP1 = new TH2D("h2_ratio_passMIP1","h2_ratio_passMIP1",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
+    for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+        for (int i_chan = 0; i_chan < channel_No; ++i_chan){
+            h2_ratio_passMIP0->Fill(Pos_X(i_chan,i_chip),Pos_Y(i_chan,i_chip),
+                h_ADC_hittag1[trigger_layer0][i_chip][i_chan]->Integral(ped_new[trigger_layer0][i_chip][i_chan] + 0.5 * MIP[trigger_layer0][i_chip][i_chan], 4096)/
+                h_ADC_hittag1[trigger_layer0][i_chip][i_chan]->Integral(0, 4096));
+            h2_ratio_passMIP1->Fill(Pos_X(i_chan,i_chip),Pos_Y(i_chan,i_chip),
+                h_ADC_hittag1[trigger_layer1][i_chip][i_chan]->Integral(ped_new[trigger_layer1][i_chip][i_chan] + 0.5 * MIP[trigger_layer1][i_chip][i_chan], 4096)/
+                h_ADC_hittag1[trigger_layer1][i_chip][i_chan]->Integral(0, 4096));
+        }
+    }
     for (int i = 0; i < tree_in->GetEntries(); ++i){
     // for (int i = 0; i < 10000; ++i){
         // Edep=0;
@@ -558,6 +617,8 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         std::pair<double,double> trigger0_xy;
         int trigger1_MIP_exist = 0;
         std::pair<double,double> trigger1_xy;
+        std::vector<std::pair<int,int> > trigger0_chip_channel;
+        std::vector<std::pair<int,int> > trigger1_chip_channel;
         int nhits = 0;
         for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
             decode_cellid(cellID->at(i_hit),layer,chip,channel);
@@ -575,13 +636,22 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                     // hitE=( HG_Charge->at(i_hit) - ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
                     trigger0_MIP_exist++;
                     trigger0_xy = std::make_pair(Pos_X(channel,chip),Pos_Y(channel,chip));
-                }   
+                    trigger0_chip_channel.push_back(std::make_pair(chip,channel));
+                }else{
+                    // cout << "Skipped Hit in trigger layer 0: " << layer << " " << chip << " " << channel << endl;
+                    if (hitTag->at(i_hit) == 1) h2_skipped_Hit0->Fill(Pos_X(channel,chip),Pos_Y(channel,chip));
+                }
+
             }else if (layer == trigger_layer1){
                 if (HG_Charge->at(i_hit) > ped_new[layer][chip][channel] + 0.5 * MIP[layer][chip][channel]){
                     // hitE=( HG_Charge->at(i_hit) - ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
                     trigger1_MIP_exist++;
                     trigger1_xy = std::make_pair(Pos_X(channel,chip),Pos_Y(channel,chip));
-                }   
+                    trigger1_chip_channel.push_back(std::make_pair(chip,channel));
+                }else{
+                    // cout << "Skipped Hit in trigger layer 1: " << layer << " " << chip << " " << channel << endl;
+                    if (hitTag->at(i_hit) == 1) h2_skipped_Hit1->Fill(Pos_X(channel,chip),Pos_Y(channel,chip));
+                }
             }else{
                 continue;
             }
@@ -590,6 +660,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         h_triggerID_full->Fill(_triggerID);
         h_time_full->Fill(_Event_Time);
         nhits = 0;
+
         if ((trigger0_MIP_exist > 0 && trigger1_MIP_exist > 0)){
             // cout << "Event No: " << i << endl;
             // cout << "trigger0_MIP_exist: " << trigger0_MIP_exist << " trigger1_MIP_exist: " << trigger1_MIP_exist << endl;
@@ -615,23 +686,31 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             // h_display->GetYaxis()->SetTitleSize(0.05);
             // h_display->GetZaxis()->SetTitleSize(0.05);
             std::map <std::tuple<int,int,int>, bool> MIP_exist;
+            std::map <std::tuple<int,int,int>, bool> Hit_exist;
             for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
                 decode_cellid(cellID->at(i_hit),layer,chip,channel);
                 double hitE=0;
                 if (ExcludeCh(layer,chip,channel)) continue;
-                if( (HG_Charge->at(i_hit))-ped_new[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
-                {
+                // if( (HG_Charge->at(i_hit))-ped_new[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
+                // {
                     hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                }else{
-                    hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
-                } 
+                // }else{
+                    // hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
+                // } 
                 if(hitE > 0.5 * MIP_E){
                     // h_display->Fill(z_layer_cosmic(layer),Pos_X(channel,chip),Pos_Y(channel,chip),hitE);
                     nhits++;
                     if (MIP_exist.find(std::make_tuple(layer,chip,channel)) == MIP_exist.end()){
                         MIP_exist[std::make_tuple(layer,chip,channel)] = true;
                     }else{
-                        MIP_exist[std::make_tuple(layer,chip,channel)] = false;
+                        std::cout << "MIP exist error: " << layer << " " << chip << " " << channel << std::endl;
+                    }
+                }
+                if (hitTag->at(i_hit) == 1){
+                    if (Hit_exist.find(std::make_tuple(layer,chip,channel)) == Hit_exist.end()){
+                        Hit_exist[std::make_tuple(layer,chip,channel)] = true;
+                    }else{
+                        std::cout << "Hit exist error: " << layer << " " << chip << " " << channel << std::endl;
                     }
                 }
             }
@@ -640,11 +719,13 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             // h_display->Draw("box2");
             // h_display->Write(Form("display_%d",i));
             TCanvas *c_2D = new TCanvas("c_2D", "c_2D", 48, 130, 1000, 723);
+            // c_2D->SetDirectory(0);
             c_2D->Divide(1,2);
             // c_2D->cd(1);
             c_2D->cd(1)->SetRightMargin(0.3);
             // gStyle->SetOptStat(0);
-            TH2D *h2_display_zx=new TH2D("display_zy","display_zy",534,0,1602,18,-360,360);
+            TH2D *h2_display_zx=new TH2D("display_zy","display_zy",534,0,1602,18,-9*40.3,9*40.3);
+            h2_display_zx->SetDirectory(0);
             // h2_display_zx->GetXaxis()->SetRangeUser(0,800);
             h2_display_zx->GetXaxis()->SetTitle("Z [mm]");
             h2_display_zx->GetYaxis()->SetTitle("X [mm]");
@@ -656,12 +737,12 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                 decode_cellid(cellID->at(i_hit),layer,chip,channel);
                 double hitE=0;
                 if (ExcludeCh(layer,chip,channel)) continue;
-                if( (HG_Charge->at(i_hit))-ped_new[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
-                {
+                // if( (HG_Charge->at(i_hit))-ped_new[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
+                // {
                     hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                }else{
-                    hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
-                } 
+                // }else{
+                //     hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
+                // } 
                 if(hitE > 0.5 * MIP_E) h2_display_zx->Fill(z_layer_cosmic(layer),Pos_X(channel,chip),hitE);
             }
             double trigger0_z = z_layer_cosmic(trigger_layer0);
@@ -682,7 +763,8 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             // c2->SaveAs(Form("MuonCandidate.pdf",i));
             // c_2D->cd(2);
             c_2D->cd(2)->SetRightMargin(0.3);
-            TH2D *h2_display_zy=new TH2D("display_zy","display_zy",534,0,1602,18,-360,360);
+            TH2D *h2_display_zy=new TH2D("display_zy","display_zy",534,0,1602,18,-9*40.3,9*40.3);
+            h2_display_zy->SetDirectory(0);
             // h2_display_zy->GetXaxis()->SetRangeUser(0,800);
             h2_display_zy->GetXaxis()->SetTitle("Z [mm]");
             h2_display_zy->GetYaxis()->SetTitle("Y [mm]");
@@ -693,13 +775,13 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
                 decode_cellid(cellID->at(i_hit),layer,chip,channel);
                 double hitE=0;
-                if (ExcludeCh(layer,chip,channel)) continue;
-                if( (HG_Charge->at(i_hit))-ped_new[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
-                {   
+                // if (ExcludeCh(layer,chip,channel)) continue;
+                // if( (HG_Charge->at(i_hit))-ped_new[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
+                // {   
                     hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                }else{
-                    hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
-                } 
+                // }else{
+                //     hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
+                // } 
                 if(hitE > 0.5 * MIP_E) h2_display_zy->Fill(z_layer_cosmic(layer),Pos_Y(channel,chip),hitE);
             }
             h2_display_zy->SetTitle(Form("Event %d",i));
@@ -720,6 +802,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             double costheta = std::sqrt(1.0 / (1.0 + std::pow(std::get<0>(fit_result), 2) + std::pow(std::get<0>(fit_result2), 2)));
             double phi = std::atan2(std::get<0>(fit_result2), std::get<0>(fit_result));
             h_costheta->Fill(costheta);
+            h2_nHits_costheta->Fill(nhits, costheta);
             h_phi->Fill(phi);
             if (std::get<2>(fit_result) < 5 && std::get<2>(fit_result2) < 5){
                 h2_trigger0_xy_chi2_under5->Fill(trigger_layer0_x,trigger_layer0_y);
@@ -731,6 +814,24 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             // c_2D->SaveAs("MuonCandidate2.pdf");
             // c_2D->SaveAs(Form("MuonCandidate_%d.png",i));
             //denominator events
+            if (trigger0_MIP_exist > 1 || trigger1_MIP_exist > 1){
+                std::cout << "Trigger Layer has several Hits: " << trigger0_MIP_exist << " " << trigger1_MIP_exist << std::endl;
+                std::cout << "Trigger Layer 0: " << trigger_layer0_x << " " << trigger_layer0_y << std::endl;
+                int channel0 = 0;
+                int chip0 = 0;
+                inverse(trigger_layer0_x, trigger_layer0_y, chip0, channel0);
+                std::cout << "Trigger Layer 0 Inverse: " << chip0 << " " << channel0 << std::endl;
+                int channel1 = 0;
+                int chip1 = 0;
+                inverse(trigger_layer1_x, trigger_layer1_y, chip1, channel1);
+                std::cout << "Trigger Layer 1 Inverse: " << chip1 << " " << channel1 << std::endl;
+                if (trigger0_MIP_exist>1){
+                    h2_MIP_double0->Fill(trigger_layer0_x, trigger_layer0_y);
+                }
+                if (trigger1_MIP_exist>1){
+                    h2_MIP_double1->Fill(trigger_layer1_x, trigger_layer1_y);
+                }
+            }
             if ( trigger0_MIP_exist == 1 && trigger1_MIP_exist == 1 && 
                 std::get<2>(fit_result) < 5 && std::get<2>(fit_result2) < 5 &&
                 abs(trigger_layer0_x - trigger0_xy.first) < 20 &&
@@ -744,9 +845,14 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                         int chip =0;
                         int channel = 0;
                         int i = x/40.3;
-                        int j = y/40.3;
-                        if ( abs(x - i*40.3)> 19 || abs(y - j*40.3) > 19) continue;
-                        if ( abs(x) > HBU_X*3/2 || abs(y) > HBU_Y*3/2) continue;
+                        int j = y/40.3; // if y= -80, j =
+                        if ( abs(x - i*40.3-std::copysign(1,x)*20.15)> 19 || abs(y - j*40.3-std::copysign(1,y)*20.15) > 19) {
+                            // std::cout << "Error: x or y out of range: " << x << " " << y << std::endl;
+                            // inverse(x,y,chip,channel);
+                            // std::cout << "After inverse: chip = " << chip << " channel = " << channel << std::endl;
+                            continue;
+                        }
+                        if ( abs(x) > HBU_X*1.5 || abs(y) > HBU_Y*0.5) continue;
                         inverse(x,y,chip,channel);
                         if (chip < 0 || chip >= chip_No || channel < 0 || channel >= channel_No) continue;
                         // if (ExcludeCh(i_layer,chip,channel)) continue;
@@ -757,8 +863,20 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                             is_MIP = false;
                         }
                         efficiency3-> Fill(is_MIP, i_layer*chip_No*channel_No + chip*channel_No + channel);
+                        bool is_Hit = false;
+                        if (Hit_exist.find(std::make_tuple(i_layer,chip,channel)) != Hit_exist.end()){
+                            is_Hit = Hit_exist[std::make_tuple(i_layer,chip,channel)];
+                        }else{
+                            is_Hit = false;
+                        }
+                        efficiency4-> Fill(is_Hit, i_layer*chip_No*channel_No + chip*channel_No + channel);
                     }
             }
+            delete c_2D;
+            delete h2_display_zx;
+            delete h2_display_zy;
+            MIP_exist.clear();
+            Hit_exist.clear();
         }
     }
     c2->SaveAs("MuonCandidate2.pdf)");
@@ -819,13 +937,16 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_triggerID_full->SetLineColor(kRed);
     h_triggerID_full->SetLineWidth(2);
     h_triggerID_full->GetXaxis()->SetTitle("Trigger ID");
-    h_triggerID_full->GetYaxis()->SetTitle("Counts");
+    h_triggerID_full->GetYaxis()->SetTitle("Events/TriggerID");
+    h_triggerID_full->Scale(1./(h_triggerID_full->GetXaxis()->GetXmax()/h_triggerID_full->GetNbinsX())); // Scale
     h_triggerID_full->Draw("hist");
     c4->cd(2);
     h_triggerID_MuonCandidate->SetLineColor(kBlue);
     h_triggerID_MuonCandidate->SetLineWidth(2);
     h_triggerID_MuonCandidate->GetXaxis()->SetTitle("Trigger ID");
-    h_triggerID_MuonCandidate->GetYaxis()->SetTitle("Counts");
+    h_triggerID_MuonCandidate->GetYaxis()->SetTitle("Events/TriggerID");
+    h_triggerID_MuonCandidate->Scale(1./(h_triggerID_MuonCandidate->GetXaxis()->GetXmax()/h_triggerID_MuonCandidate->GetNbinsX())); // Scale
+    h_triggerID_MuonCandidate->SetTitle("MuonCandidate Trigger ID Distribution");
     h_triggerID_MuonCandidate->Draw("hist");
     c4->SaveAs("MuonCandidate2_triggerID.png");
     TCanvas *c5 = new TCanvas("c5","c5",800,1500);
@@ -879,6 +1000,12 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         TLatex *latex_layer = new TLatex();
         latex_layer->SetTextSize(0.03);
         latex_layer->SetTextFont(42);
+        if (i_layer == trigger_layer0 || i_layer == trigger_layer1){
+            latex_layer->SetTextColor(kBlue);
+            latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.09, Form("Trigger Layer"));
+        }else{
+            latex_layer->SetTextColor(kBlack);
+        }
         latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.05, Form("Layer %d", i_layer));
     }
     c6->Update();
@@ -906,6 +1033,75 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         }
         c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency_layer%d.png", i_layer, i_layer));
     }
+    TCanvas *c7 = new TCanvas("c7","c7",8000,600);
+    efficiency4->SetTitle("Efficiency of Hit Tag in each cell; Layer*Chip*Channel; Efficiency");
+    // efficiency4->SetLineColor(kRed);
+    // efficiency4->SetMarkerColor(kRed);
+    // efficiency4->SetMarkerStyle(20);
+    // efficiency4->SetMarkerSize(0.5);
+    efficiency4->Draw();
+    c7->Update();
+    auto graph2 = efficiency4->GetPaintedGraph();
+    graph2->GetXaxis()->SetRangeUser(0, Layer_No*chip_No*channel_No);
+    graph2->Draw("AP");
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        TLine *line = new TLine(i_layer*chip_No*channel_No, 0, i_layer*chip_No*channel_No, 1);
+        line->SetLineColor(kRed);
+        line->SetLineStyle(2);
+        line->Draw("same");
+        TLatex *latex_layer = new TLatex();
+        latex_layer->SetTextSize(0.03);
+        latex_layer->SetTextFont(42);
+        if (i_layer == trigger_layer0 || i_layer == trigger_layer1){
+            latex_layer->SetTextColor(kBlue);
+            latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.09, Form("Trigger Layer"));
+        }else{
+            latex_layer->SetTextColor(kBlack);
+        }
+        latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.05, Form("Layer %d", i_layer));
+    }
+    c7->Update();
+    c7->Modified();
+    c7->SaveAs("MuonCandidate2_efficiency4.png");
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        TCanvas *c1 = new TCanvas(Form("c1_layer%d_hit",i_layer),Form("c1_layer%d_hit",i_layer),800,600);
+        graph2->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
+        graph2->SetTitle(Form("Efficiency of Hit Tag in Layer %d; Chip*Channel; Efficiency", i_layer));
+        graph2->Draw("AP");
+        for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+            TLine *line = new TLine(i_layer*chip_No*channel_No + i_chip*channel_No, 0, i_layer*chip_No*channel_No + i_chip*channel_No, 1);
+            line->SetLineColor(kRed);
+            line->SetLineStyle(2);
+            line->Draw("same");
+            TLatex *latex_chip = new TLatex();
+            latex_chip->SetTextSize(0.03);
+            latex_chip->SetTextFont(42);
+            latex_chip->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ channel_No*0.3, 1.05, Form("Chip %d", i_chip));
+            for (int i_channel = 0; i_channel < channel_No; ++i_channel){
+                if (efficiency4->GetEfficiency(i_layer*chip_No*channel_No + i_chip*channel_No + i_channel) < 0.4 ){
+                    TLatex *latex_channel = new TLatex();
+                    latex_channel->SetTextSize(0.03);
+                    latex_channel->SetTextFont(42);
+                    latex_channel->SetTextColor(kRed);
+                    latex_channel->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ i_channel, 0.3, Form("Channel %d", i_channel));
+                }
+            }
+        }
+        c1->Update();
+        c1->Modified();
+        if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
+            gSystem->mkdir(Form("Layer_%d",i_layer), true);
+        }
+        c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency4_layer%d.png", i_layer, i_layer));
+    }
+    TCanvas *c8 = new TCanvas("c8","c8",800,600);
+    h2_nHits_costheta->Draw("COLZ");
+    h2_nHits_costheta->GetXaxis()->SetTitle("nHits");
+    h2_nHits_costheta->GetYaxis()->SetTitle("cos(theta)");
+    h2_nHits_costheta->SetTitle("nHits vs cos(theta) for Muon Candidates");
+    c8->SaveAs("MuonCandidate2_nHits_costheta.png");
+
+    h2_nHits_costheta->Write();
     efficiency2->Write();
     h_chi2perndf_x->Write();
     h_slope_x->Write();
@@ -932,6 +1128,12 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_time_MuonCandidate->Write();
     efficiency->Write();
     efficiency3->Write();
+    h2_MIP_double0->Write();
+    h2_MIP_double1->Write();
+    h2_skipped_Hit0->Write();
+    h2_skipped_Hit1->Write();
+    h2_ratio_passMIP0->Write();
+    h2_ratio_passMIP1->Write();
     fout2->Close();           
     fout->Close();
     return 1;

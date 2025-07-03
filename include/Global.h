@@ -27,6 +27,10 @@ inline void decode_cellid(int cellID,int &layer,int &chip,int &channel){
     layer=cellID/1E5;
 	chip=(cellID-layer*1E5)/1E4;
 	channel=cellID%100;
+	if (channel > channel_No || chip > chip_No || layer > Layer_No || channel < 0 || chip < 0 || layer < 0) {
+		std::cout << "Error: cellID out of range: " << cellID << std::endl;
+		return;
+	}
 }
 inline void inverse(double x,double y,int &chip,int &channel){
 	int i=x/40.3+9;
@@ -36,6 +40,8 @@ inline void inverse(double x,double y,int &chip,int &channel){
 	if(chip%3!=0){
 		if(channel==2)channel=0;
 		else if(channel==0)channel=2;
+		if(channel==33)channel=35;
+		else if(channel==35)channel=33;
 	}
 }
 inline double Pos_X(int channel_ID,int chip_ID,int HBU_ID=0){
@@ -44,6 +50,8 @@ inline double Pos_X(int channel_ID,int chip_ID,int HBU_ID=0){
 	if(chip_ID!=0){
 		if(channel_ID==2)channel_ID=0;
 		else if(channel_ID==0)channel_ID=2;
+		if(channel_ID==33)channel_ID=35;
+		else if(channel_ID==35)channel_ID=33;
 	}
 	return (_Pos_Y[channel_ID]-chip_ID*chip_dis_Y);
 }
