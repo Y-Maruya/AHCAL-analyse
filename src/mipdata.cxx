@@ -322,8 +322,8 @@ int raw2Root::MIP(vector<int> *_cellid, vector<int> *hitTag, vector<double> *hig
     }
     int l = _cellid->size();
     // cout<<l<<endl;
-    if (l < 30)
-        return 0;
+    // if (l < 30)
+    //     return 0;
     double hit_x = 0, hit_y = 0;
     for (int i = 0; i < l; i++)
     {
@@ -333,18 +333,18 @@ int raw2Root::MIP(vector<int> *_cellid, vector<int> *hitTag, vector<double> *hig
     }
     hit_x /= l;
     hit_y /= l;
-    for (int i = 0; i < _cellid->size(); i++)
-    {
-        int cid = _cellid->at(i);
-        if (abs(Pos_X_1(cid) - hit_x) > 60 || abs(Pos_Y_1(cid) - hit_y) > 60)
-        {
-            noise_cellid->push_back(cid);
-            noise_hit->push_back(highgain->at(i));
-            _cellid->erase(_cellid->begin() + i);
-            highgain->erase(highgain->begin() + i);
-            i--;
-        }
-    }
+    // for (int i = 0; i < _cellid->size(); i++)
+    // {
+    //     int cid = _cellid->at(i);
+    //     if (abs(Pos_X_1(cid) - hit_x) > 60 || abs(Pos_Y_1(cid) - hit_y) > 60)
+    //     {
+    //         noise_cellid->push_back(cid);
+    //         noise_hit->push_back(highgain->at(i));
+    //         _cellid->erase(_cellid->begin() + i);
+    //         highgain->erase(highgain->begin() + i);
+    //         i--;
+    //     }
+    // }
     int layerlen[40] = {0};
     for (int i = 0; i < _cellid->size(); i++)
     {
@@ -364,8 +364,8 @@ int raw2Root::MIP(vector<int> *_cellid, vector<int> *hitTag, vector<double> *hig
         if (layerlen[i])
             hitlayer++;
     }
-    if (hitlayer < 30)
-        return 0;
+    // if (hitlayer < 30)
+    //     return 0;
     int flag03=0,flag358=0;
     int cid0=0,cid38=0;
     // int h0=0,h38=0;
@@ -384,7 +384,7 @@ int raw2Root::MIP(vector<int> *_cellid, vector<int> *hitTag, vector<double> *hig
             // h38 = highgain->at(i);
         }
     }
-    if (flag03 * flag358 == 0 || abs(Pos_X_1(cid0) - Pos_X_1(cid38)) > 41 || abs(Pos_Y_1(cid0) - Pos_Y_1(cid38)) > 41)
-        return -1;
+    // if (flag03 * flag358 == 0 || abs(Pos_X_1(cid0) - Pos_X_1(cid38)) > 41 || abs(Pos_Y_1(cid0) - Pos_Y_1(cid38)) > 41)
+    //     return -1;
     return 1;
 }
