@@ -431,40 +431,6 @@ int raw2Root::Test(string str_dat,string str_ped,string str_dac,string str_MIP,s
                     // h_ADC_hittag0[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
                     // h_ADC_hittag0[i_layer][i_chip][i_chan]->SetLineColor(kRed);
                     // h_ADC_hittag0[i_layer][i_chip][i_chan]->Draw();
-                    // // h_ADC_hittag1[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 1, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
-                    // h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("ADC");
-                    // h_ADC_hittag1[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
-                    // h_ADC_hittag1[i_layer][i_chip][i_chan]->SetLineColor(kBlue);
-                    // h_ADC_hittag1[i_layer][i_chip][i_chan]->Draw("same");
-                    // h_ped_line->Draw("same");
-                    // h_mip_line->Draw("same");
-                    // TLegend *leg = new TLegend(0.6,0.7,0.9,0.9);
-                    // leg->AddEntry(h_ADC_hittag0[i_layer][i_chip][i_chan],"HitTag = 0","l");
-                    // leg->AddEntry(h_ADC_hittag1[i_layer][i_chip][i_chan],"HitTag = 1","l");
-                    // leg->AddEntry(h_ped_line,"Pedestal@beam test","l");
-                    // leg->AddEntry(h_mip_line,"MIP@beam test","l");
-                    // leg->SetBorderSize(0);
-                    // leg->SetFillColor(0);
-                    // leg->SetTextSize(0.03);
-                    // leg->Draw();
-                    // c1->Update();
-                    // c1->Modified();
-                    // TLatex *latex = new TLatex();
-                    // latex->SetTextSize(0.04);
-                    // latex->SetTextFont(42);
-                    // latex->DrawLatexNDC(0.5,0.5,(std::string("Characteristics: ") +  (h2_ChMap->GetBinContent(i_layer*chip_No+i_chip+1,i_chan+1) == ChannelCharacteristics::TooHighADC ? " (Too High ADC)" :
-                    //     h2_ChMap->GetBinContent(i_layer*chip_No+i_chip+1,i_chan+1) == ChannelCharacteristics::ThBad1peek ? " (Threshold Bad 1 peek)" :
-                    //     h2_ChMap->GetBinContent(i_layer*chip_No+i_chip+1,i_chan+1) == ChannelCharacteristics::ThBad2peek ? " (Threshold Bad 2 peek)" :
-                    //     h2_ChMap->GetBinContent(i_layer*chip_No+i_chip+1,i_chan+1) == ChannelCharacteristics::ThGood1peek ? " (Threshold Good 1 peek)" :
-                    //     h2_ChMap->GetBinContent(i_layer*chip_No+i_chip+1,i_chan+1) == ChannelCharacteristics::ThGood2peek ? " (Threshold Good 2 peek)" :
-                    //     h2_ChMap->GetBinContent(i_layer*chip_No+i_chip+1,i_chan+1) == ChannelCharacteristics::NoData ? " (No Data)" : "")).c_str());
-                    
-                    // // h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetRangeUser(minX_0-20,maxX_0+20);
-                    // // h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->SetRangeUser(minX_1-20,maxX_1+20);
-                    // c1->cd(2);
-                    // h_ADC_hittag0[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 0, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
-                    // h_ADC_hittag0[i_layer][i_chip][i_chan]->Draw("hist");
-                    // c1->cd(3);
                     // h_ADC_hittag1[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 1, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
                     // h_ADC_hittag1[i_layer][i_chip][i_chan]->Draw("hist");
                     // c1->Update();

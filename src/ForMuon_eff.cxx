@@ -551,10 +551,12 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     tree_in->Draw("Event_Time>>h_time","Event_Time<1e5");
     int max_time = GetMaxXWithContent(h_time);
     cout<<"max_time = "<<max_time<<endl;
-    TH1D *h_time_full = new TH1D("h_time_full","h_time_full;Event_Time",200,0, max_time+1);
-    TH1D *h_time_MuonCandidate = new TH1D("h_time_MuonCandidate","h_time_MuonCandidate;Event_Time",200,0, max_time+1);
-    TH1D *h_triggerID_full = new TH1D("h_triggerID_full","h_triggerID_full;trigger_ID",200,0, max_triggerID+1);
-    TH1D *h_triggerID_MuonCandidate = new TH1D("h_triggerID_MuonCandidate","h_triggerID_MuonCandidate;trigger_ID",200,0, max_triggerID+1);
+    TH1D *h_time_full = new TH1D("h_time_full","h_time_full;Event_Time",20,0, max_time+1);
+    TH1D *h_time_MuonCandidate = new TH1D("h_time_MuonCandidate","h_time_MuonCandidate;Event_Time",20,0, max_time+1);
+    TH1D *h_time_full_bin1 = new TH1D("h_time_full_bin1","h_time_full_bin1;Event_Time",max_time+1,0, max_time+1);
+    TH1D *h_time_MuonCandidate_bin1 = new TH1D("h_time_MuonCandidate_bin1","h_time_MuonCandidate_bin1;Event_Time",max_time+1,0, max_time+1);
+    TH1D *h_triggerID_full = new TH1D("h_triggerID_full","h_triggerID_full;trigger_ID",20,0, max_triggerID+1);
+    TH1D *h_triggerID_MuonCandidate = new TH1D("h_triggerID_MuonCandidate","h_triggerID_MuonCandidate;trigger_ID",20,0, max_triggerID+1);
     max_triggerID = GetMaxXWithContent(h_triggerID);
     cout<<"max_triggerID = "<<max_triggerID<<" Entries = "<<tree_in->GetEntries()<<endl;
     TCanvas *c2 = new TCanvas("c2","c2",800,600);
@@ -659,6 +661,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         h_nHits_full->Fill(nhits);
         h_triggerID_full->Fill(_triggerID);
         h_time_full->Fill(_Event_Time);
+        h_time_full_bin1->Fill(_Event_Time);
         nhits = 0;
 
         if ((trigger0_MIP_exist > 0 && trigger1_MIP_exist > 0)){
@@ -811,6 +814,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             }
             h_triggerID_MuonCandidate->Fill(_triggerID);
             h_time_MuonCandidate->Fill(_Event_Time);
+            h_time_MuonCandidate_bin1->Fill(_Event_Time);
             // c_2D->SaveAs("MuonCandidate2.pdf");
             // c_2D->SaveAs(Form("MuonCandidate_%d.png",i));
             //denominator events
@@ -949,9 +953,9 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_triggerID_MuonCandidate->SetTitle("MuonCandidate Trigger ID Distribution");
     h_triggerID_MuonCandidate->Draw("hist");
     c4->SaveAs("MuonCandidate2_triggerID.png");
-    TCanvas *c5 = new TCanvas("c5","c5",800,1500);
-    c5->Divide(1,3);
-    c5->cd(1);
+    TCanvas *c51 = new TCanvas("c51","c51",800,1500);
+    c51->Divide(1,3);
+    c51->cd(1);
     TLatex *latex2 = new TLatex();
     latex2->SetTextSize(0.03);
     latex2->SetTextFont(42);
@@ -965,7 +969,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_time_full->SetTitle("Full Data Event Time Distribution");
     h_time_full->Scale(1./(h_time_full->GetXaxis()->GetXmax()/h_time_full->GetNbinsX())); // Scale to Hz
     h_time_full->Draw("hist");
-    c5->cd(2);
+    c51->cd(2);
     h_time_MuonCandidate->SetLineColor(kBlue);
     h_time_MuonCandidate->SetLineWidth(2);
     h_time_MuonCandidate->GetXaxis()->SetTitle("Event Time [s]");
@@ -973,13 +977,38 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_time_MuonCandidate->SetTitle("MuonCandidate Event Time Distribution");
     h_time_MuonCandidate->Scale(1./(h_time_MuonCandidate->GetXaxis()->GetXmax()/h_time_MuonCandidate->GetNbinsX())); // Scale to Hz
     h_time_MuonCandidate->Draw("hist");
-    c5->cd(3);
+    c51->cd(3);
     TEfficiency *efficiency2 = new TEfficiency(*h_time_MuonCandidate, *h_time_full);
     // TCanvas *c_eff2 = new TCanvas("c_eff2","c_eff2",800,600);
     efficiency2->SetTitle("MuonCandidate Efficiency; Event Time [s]; Efficiency");
     // efficiency2->SetLineColor(kRed);
     efficiency2->Draw();
-    c5->SaveAs("MuonCandidate2_time.png");
+    c51->SaveAs("MuonCandidate2_time.png");
+    TCanvas *c5 = new TCanvas("c5","c5",800,1500);
+    c5->Divide(1,3);
+    c5->cd(1);
+    h_time_full_bin1->SetLineColor(kRed);
+    h_time_full_bin1->SetLineWidth(2);
+    h_time_full_bin1->GetXaxis()->SetTitle("Event Time [s]");
+    h_time_full_bin1->GetYaxis()->SetTitle("Hz");
+    h_time_full_bin1->SetTitle("Full Data Event Time Distribution (bin 1)");
+    h_time_full_bin1->Scale(1./(h_time_full_bin1->GetXaxis()->GetXmax()/h_time_full_bin1->GetNbinsX())); // Scale
+    h_time_full_bin1->Draw("hist");
+    c5->cd(2);
+    h_time_MuonCandidate_bin1->SetLineColor(kBlue);
+    h_time_MuonCandidate_bin1->SetLineWidth(2);
+    h_time_MuonCandidate_bin1->GetXaxis()->SetTitle("Event Time [s]");
+    h_time_MuonCandidate_bin1->GetYaxis()->SetTitle("Hz");
+    h_time_MuonCandidate_bin1->SetTitle("MuonCandidate Event Time Distribution (bin 1)");
+    h_time_MuonCandidate_bin1->Scale(1./(h_time_MuonCandidate_bin1->GetXaxis()->GetXmax()/h_time_MuonCandidate_bin1->GetNbinsX())); // Scale
+    h_time_MuonCandidate_bin1->Draw("hist");
+    c5->cd(3);
+    TEfficiency *efficiency31 = new TEfficiency(*h_time_MuonCandidate_bin1, *h_time_full_bin1);
+    // TCanvas *c_eff2 = new TCanvas("c_eff2","c_eff2",800,600);
+    efficiency31->SetTitle("MuonCandidate Efficiency (bin 1); Event Time [s]; Efficiency");
+    // efficiency3->SetLineColor(kRed);
+    efficiency31->Draw();
+    c5->SaveAs("MuonCandidate2_time_bin1.png");
     // c_eff2->SaveAs("MuonCandidate2_time_efficiency.png");
     TCanvas *c6 = new TCanvas("c6","c6",8000,600);
     efficiency3->SetTitle("Efficiency of 1/2 MIP in each cell; Layer*Chip*Channel; Efficiency");
@@ -1126,6 +1155,8 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_triggerID_MuonCandidate->Write();
     h_time_full->Write();
     h_time_MuonCandidate->Write();
+    h_time_full_bin1->Write();
+    h_time_MuonCandidate_bin1->Write();
     efficiency->Write();
     efficiency3->Write();
     h2_MIP_double0->Write();
