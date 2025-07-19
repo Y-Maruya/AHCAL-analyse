@@ -1,6 +1,5 @@
 #!/bin/bash
 InputRunNumber=$1
-# DatDataPath="/eos/user/s/shunlian/AHCAL/data/stable_test/"
 DatDataPath="/afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-data/"
 get_run_file() {
     local run_number=$1
@@ -48,8 +47,7 @@ if ! [[ "$TriggerLayer1" =~ ^([0-9]|[1-3][0-9])$ ]] || ! [[ "$TriggerLayer2" =~ 
     echo "Error: Trigger layers must be integers between 0 and 39"
     exit 1
 fi
-../bin/ForMuon_eff $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root muon_full.root $2 $3
-../bin/Test $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root test.root $2 $3
+../bin/ForMuon_eff_with_offset $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root muon_full.root $2 $3 MuonCandidate2.root Save
 if [ $? -ne 0 ]; then
     echo "Error: Analysis script failed"
     exit 1

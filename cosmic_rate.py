@@ -5,7 +5,7 @@ scint_size = 0.72  # Side length (m)
 scint_area = scint_size ** 2
 
 # Distance between scintillators
-distance = .16  # m
+distance = .40  # m
 
 # Number of samples
 N = 10**6

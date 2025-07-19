@@ -33,13 +33,67 @@
 int layer,chip,channel;
 using namespace std;
 char char_tmp[200];
+std::string saveornot = "";
 Int_t main(int argc,char *argv[])
 {
+    if (argc < 9) {
+        cout << "Usage: " << argv[0] << " <dat_file> <ped_file> <dac_file> <MIP_file> <output_file> <trigger_layer0> <trigger_layer1> <offset_file> [save_option]" << endl;
+        return 1;
+    }
+    
     double start = clock();
     raw2Root tw;
     int trigger_layer0 = std::stoi(argv[6]);
     int trigger_layer1 = std::stoi(argv[7]);
-    tw.forMuon_eff(argv[1],argv[2],argv[3],argv[4],argv[5], trigger_layer0, trigger_layer1);
+    string offset_file = argv[8];
+    
+    if (argc > 9) {
+        saveornot = std::string(argv[9]);
+        std::cout << "Save option: " << saveornot << std::endl;
+    }
+    
+    // Load offsets from file
+    double x_offset[40];
+    double y_offset[40];
+    
+    // Initialize offsets to zero
+    for (int i = 0; i < 40; ++i) {
+        x_offset[i] = 0.0;
+        y_offset[i] = 0.0;
+    }
+    
+    // Load offsets from file
+    TFile* offset_file_obj = TFile::Open(offset_file.c_str(), "READ");
+    if (offset_file_obj) {
+        TTree* offset_tree = (TTree*)offset_file_obj->Get("offset_values");
+        if (offset_tree) {
+            int layer_id;
+            double x_offset_val, y_offset_val;
+            
+            offset_tree->SetBranchAddress("layer", &layer_id);
+            offset_tree->SetBranchAddress("x_offset", &x_offset_val);
+            offset_tree->SetBranchAddress("y_offset", &y_offset_val);
+            
+            for (int i = 0; i < offset_tree->GetEntries(); ++i) {
+                offset_tree->GetEntry(i);
+                if (layer_id >= 0 && layer_id < 40) {
+                    x_offset[layer_id] = x_offset_val;
+                    y_offset[layer_id] = y_offset_val;
+                }
+            }
+            cout << "Successfully loaded offsets from " << offset_file << endl;
+        } else {
+            cout << "Warning: Could not find offset_values tree in " << offset_file << endl;
+        }
+        offset_file_obj->Close();
+        delete offset_file_obj;
+    } else {
+        cout << "Warning: Could not open offset file " << offset_file << endl;
+    }
+    
+    // Call the offset-corrected analysis
+    tw.forMuon_eff_with_offset(argv[1],argv[2],argv[3],argv[4],argv[5], trigger_layer0, trigger_layer1, x_offset, y_offset);
+    
     double end = clock();
     cout<<"end of RawToRoot : Time : "<<(end-start)/CLOCKS_PER_SEC<<endl;
     return 0;
@@ -69,6 +123,44 @@ int ExcludeCh(int layer, int chip, int channel){
 double z_layer_cosmic(int layer) {
     return (layer/2) * 80.0 + (layer % 2) * 20.0; 
 } 
+int inverse_z_layer_cosmic(double z) {
+    if (z <= 0 || z >= 1600) {
+        std::cout << "Error: z out of range: " << z << std::endl;
+        return -1; // Error code for out of range
+    }
+    int layer_half = static_cast<int>(z / 80.0);
+    int layer = layer_half * 2; // Even layers
+    if (z >= 80.0 * layer_half + 20.0) {
+        layer += 1; // Adjust for odd layers
+    }
+    if (layer < 0 || layer >= 40) {
+        std::cout << "Error: layer out of range: " << layer << std::endl;
+        return -1; // Error code for out of range
+    }
+    return layer;
+}
+
+TH1D* h_costheta2(int trigger0, int trigger1){
+    TH1D* h_costheta = new TH1D("h_costheta2","h_costheta2",100,0,1);
+    h_costheta->SetXTitle("cos(#theta)");
+    h_costheta->SetYTitle("Counts");
+    h_costheta->SetTitle(Form("MC Cosine of Angle between Trigger Layer %d and %d", trigger0, trigger1));
+    h_costheta->SetDirectory(0);
+    TF1* f1 = new TF1("f1", "x^2", 0, 1);
+    for (int i = 0; i < 1e6; ++i) {
+        double x0 = gRandom->Uniform(-HBU_X*1.5, HBU_X*1.5);
+        double y0 = gRandom->Uniform(-HBU_Y*0.5, HBU_Y*0.5);
+        double costheta = f1->GetRandom();
+        double tantheta = sqrt((1/costheta/costheta) - 1);
+        double phi = gRandom->Uniform(-3.14, 3.14);
+        double x1 = x0 + tantheta * cos(phi) * abs(z_layer_cosmic(trigger0) - z_layer_cosmic(trigger1));
+        double y1 = y0 + tantheta * sin(phi) * abs(z_layer_cosmic(trigger0) - z_layer_cosmic(trigger1));
+        if (abs(x1) > HBU_X*1.5 || abs(y1) > HBU_Y*0.5) continue;
+        h_costheta->Fill(costheta);
+    }
+    h_costheta->Scale(1.0 / h_costheta->Integral());
+    return h_costheta;
+}
 std::tuple <double, double, double, int> FitMuonTrack(TH2D* h2_display) {
     int nHits = 0;
     std::vector<double> x;
@@ -123,7 +215,181 @@ std::tuple <double, double, double, int> FitMuonTrack(TH2D* h2_display) {
     result = std::make_tuple(fitLine->GetParameter(0), fitLine->GetParameter(1), fitLine->GetChisquare()/fitLine->GetNDF(), nHits);
     return result;
 }
-int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string str_MIP,string output_file, int trigger_layer0, int trigger_layer1){
+std::tuple <double, double, double, int> FitMuonTrack_withOffset(TH2D* h2_display, double* x_offset) {
+    int nHits = 0;
+    std::vector<double> x;
+    std::vector<double> z;
+    std::vector<double> ex;
+    std::vector<double> ez;
+    for (int i = 1; i <= h2_display->GetNbinsX(); ++i) {
+        for (int j = 1; j <= h2_display->GetNbinsY(); ++j) {
+            if (h2_display->GetBinContent(i,j) > 0) {
+                nHits++;
+                double z_val = h2_display->GetXaxis()->GetBinCenter(i);
+                int layer = inverse_z_layer_cosmic(z_val);
+                if (layer < 0) continue; // Skip if layer is invalid
+                double x_val = h2_display->GetYaxis()->GetBinCenter(j) - x_offset[layer];
+                x.push_back(x_val);
+                z.push_back(z_val);
+                ex.push_back(40./std::sqrt(12.0));
+                ez.push_back(3./std::sqrt(12.0));
+            }
+        }
+    }
+    double x1[nHits];
+    double z1[nHits];
+    double ex1[nHits];
+    double ez1[nHits];
+    for (int i = 0; i < nHits; ++i) {
+        x1[i] = x[i];
+        z1[i] = z[i];
+        ex1[i] = ex[i];
+        ez1[i] = ez[i];
+    }
+    TGraphErrors* gr = new TGraphErrors(nHits, z1, x1, ez1, ex1);
+    gr->SetTitle("Muon Track Fit;Z [mm];X [mm]");
+    gr->SetMarkerStyle(0);
+    gr->SetMarkerSize(0);
+    TF1* fitLine = new TF1("fitLine", "[0]*x + [1]", 0, 1602);
+    gr->Fit(fitLine, "Q");
+    gStyle->SetOptStat(0);
+    gStyle->SetStatX(1.0);
+    gStyle->SetStatY(0.9);
+    // h2_display->Draw("COLZ");
+    // // gr->Draw("goffsame"); 
+    // fitLine->Draw("same");
+    // TLatex *latex = new TLatex();
+    // latex->SetTextSize(0.03);
+    // latex->SetTextColor(kRed);
+    // latex->SetNDC();
+    // latex->DrawLatex(0.8, 0.9, Form("Slope: %.2f", fitLine->GetParameter(0)));
+    // latex->DrawLatex(0.8, 0.85, Form("Intercept: %.2f", fitLine->GetParameter(1)));
+    // latex->DrawLatex(0.8, 0.8, Form("Chi2/NDF: %.2f", fitLine->GetChisquare()/fitLine->GetNDF()));
+    // latex->DrawLatex(0.8, 0.75, Form("NDF: %d", fitLine->GetNDF()));
+    // latex->DrawLatex(0.8, 0.7, Form("NHit: %d", nHits));
+    std::tuple <double, double, double, int> result;
+    result = std::make_tuple(fitLine->GetParameter(0), fitLine->GetParameter(1), fitLine->GetChisquare()/fitLine->GetNDF(), nHits);
+    return result;
+}
+void AllChannelSave(const char* filename, TH1D* h_ADC_MuonTrack[Layer_No][chip_No][channel_No], TH1D* h_ADC_NotMuonTrack[Layer_No][chip_No][channel_No], std::string tag= "Save") {
+    if (tag.find("Save") != std::string::npos){
+        TFile *fout = new TFile(filename, "RECREATE");
+        for (int i_layer = 0; i_layer < Layer_No; ++i_layer) {
+            fout->mkdir(Form("Layer_%d", i_layer));
+            fout->cd(Form("Layer_%d", i_layer));
+            for (int i_chip = 0; i_chip < chip_No; ++i_chip) {
+                fout->mkdir(Form("Layer_%d/Chip_%d",i_layer,i_chip));
+                fout->cd(Form("Layer_%d/Chip_%d", i_layer, i_chip));
+                for (int i_channel = 0; i_channel < channel_No; ++i_channel) {
+                    if (h_ADC_MuonTrack[i_layer][i_chip][i_channel]) {
+                        h_ADC_MuonTrack[i_layer][i_chip][i_channel]->Write();
+                    }
+                    if (h_ADC_NotMuonTrack[i_layer][i_chip][i_channel]) {
+                        h_ADC_NotMuonTrack[i_layer][i_chip][i_channel]->Write();
+                    }
+                }
+            }
+        }
+        fout->Close();
+    }
+    if (tag.find("Print") != std::string::npos){
+        for (int i_layer = 0; i_layer < Layer_No; ++i_layer) {
+            if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
+                gSystem->mkdir(Form("Layer_%d",i_layer), true);
+            }
+            for (int i_chip = 0; i_chip < chip_No; ++i_chip) {
+                if (gSystem->AccessPathName(Form("Layer_%d/Chip_%d",i_layer,i_chip))) {
+                    gSystem->mkdir(Form("Layer_%d/Chip_%d",i_layer,i_chip), true);
+                }
+                for (int i_channel = 0; i_channel < channel_No; ++i_channel) {
+                    TCanvas *c = new TCanvas(Form("c_Layer%d_Chip%d_Channel%d", i_layer, i_chip, i_channel), Form("Layer %d Chip %d Channel %d", i_layer, i_chip, i_channel), 800, 600);
+                    if (h_ADC_MuonTrack[i_layer][i_chip][i_channel]) {
+                        h_ADC_MuonTrack[i_layer][i_chip][i_channel]->SetTitle(Form("Layer %d Chip %d Channel %d ADC -Ped Distribution", i_layer, i_chip, i_channel));
+                        h_ADC_MuonTrack[i_layer][i_chip][i_channel]->GetXaxis()->SetRangeUser(-40,2200);
+                        h_ADC_MuonTrack[i_layer][i_chip][i_channel]->GetXaxis()->SetTitle("ADC - Pedestal");
+                        h_ADC_MuonTrack[i_layer][i_chip][i_channel]->GetYaxis()->SetTitle("Counts");
+                        h_ADC_MuonTrack[i_layer][i_chip][i_channel]->SetLineColor(kBlue);
+                        h_ADC_MuonTrack[i_layer][i_chip][i_channel]->Draw();
+                    }
+                    if (h_ADC_NotMuonTrack[i_layer][i_chip][i_channel]) {
+                        h_ADC_NotMuonTrack[i_layer][i_chip][i_channel]->SetLineColor(kRed);
+                        h_ADC_NotMuonTrack[i_layer][i_chip][i_channel]->Draw("SAME");
+                    }
+                    TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+                    legend->SetBorderSize(0);
+                    legend->SetHeader(Form("Layer %d Chip %d Channel %d", i_layer, i_chip, i_channel));
+                    if (h_ADC_MuonTrack[i_layer][i_chip][i_channel]) {
+                        legend->AddEntry(h_ADC_MuonTrack[i_layer][i_chip][i_channel], "Matched to Muon Track", "l");
+                    }
+                    if (h_ADC_NotMuonTrack[i_layer][i_chip][i_channel]) {
+                        legend->AddEntry(h_ADC_NotMuonTrack[i_layer][i_chip][i_channel], "Not Matched to Muon Track", "l");
+                    }                   
+                    legend->Draw();
+                    c->SaveAs(Form("Layer_%d/Chip_%d/Channel_%d.png", i_layer, i_chip, i_channel));
+                    delete c;
+                    delete legend;
+                }
+            }
+        }
+    } else {
+        std::cout << "Invalid tag for AllChannelSave: " << tag << std::endl;
+    }
+}
+void AllLayerSave(const char* filename, TH1D* h_residual_x[Layer_No], TH1D* h_residual_y[Layer_No], std::string tag = "Save") {
+    if (tag.find("Save") != std::string::npos){
+        TFile *fout = new TFile(filename, "RECREATE");
+        for (int i_layer = 0; i_layer < Layer_No; ++i_layer) {
+            fout->mkdir(Form("Layer_%d", i_layer));
+            fout->cd(Form("Layer_%d", i_layer));
+            if (h_residual_x[i_layer]) {
+                h_residual_x[i_layer]->Write(Form("Residual_X_Layer_%d", i_layer));
+            }
+            if (h_residual_y[i_layer]) {
+                h_residual_y[i_layer]->Write(Form("Residual_Y_Layer_%d", i_layer));
+            }
+        }
+        fout->Close();
+    } 
+    if (tag.find("Print") != std::string::npos){
+        for (int i_layer = 0; i_layer < Layer_No; ++i_layer) {
+            if (gSystem->AccessPathName(Form("Layer_%d",i_layer)))
+                gSystem->mkdir(Form("Layer_%d",i_layer), true);
+            TCanvas *c = new TCanvas(Form("c_Layer%d", i_layer), Form("Layer %d", i_layer), 800, 600);
+            if (h_residual_x[i_layer]) {
+                h_residual_x[i_layer]->SetTitle(Form("Layer %d Residual X Distribution", i_layer));
+                h_residual_x[i_layer]->GetXaxis()->SetTitle("Residual X [mm]");
+                h_residual_x[i_layer]->GetYaxis()->SetTitle("Counts");
+                h_residual_x[i_layer]->SetLineColor(kBlue);
+                h_residual_x[i_layer]->Draw();
+            }
+            if (h_residual_y[i_layer]) {
+                h_residual_y[i_layer]->SetLineColor(kRed);
+                h_residual_y[i_layer]->Draw("SAME");
+            }
+            TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+            legend->SetBorderSize(0);
+            legend->SetHeader(Form("Layer %d", i_layer));
+            if (h_residual_x[i_layer]) {
+                legend->AddEntry(h_residual_x[i_layer], "Residual X", "l");
+            }
+            if (h_residual_y[i_layer]) {
+                legend->AddEntry(h_residual_y[i_layer], "Residual Y", "l");
+            }
+            legend->Draw();
+            c->SaveAs(Form("Layer_%d/Residuals.png", i_layer));
+            delete c;
+            delete legend;
+        }
+    } else {
+        std::cout << "Invalid tag for AllLayerSave: " << tag << std::endl;
+    }
+}
+
+
+
+
+
+int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1, double* x_offset, double* y_offset){
     //string str_root=find_datname(str_in);
     //string str_out=outputDir+"/"+"cos_ana.root";
     string str_out=output_file;
@@ -350,7 +616,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         tree_in->GetEntry(i);
         _Event_No=_triggerID;
         if (_triggerIDs.size() > 0 && _triggerID == _triggerIDs.back()) {
-            cout << "Duplicate trigger ID: " << _triggerID << endl;
+            // cout << "Duplicate trigger ID: " << _triggerID << endl;
             // continue; // Skip this event if the trigger ID is a duplicate
         }
         _triggerIDs.push_back(_triggerID);
@@ -398,7 +664,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     std::vector<int> MuonCandidate;
     // std::vector<double> zx_chi2;
     // std::vector<double> zy_chi2;
-    TFile *fout2 = new TFile("MuonCandidate2.root","RECREATE");
+    TFile *fout2 = new TFile("MuonCandidate2_offset.root","RECREATE");
     int max_triggerID = 0;
     TH1D *h_triggerID = new TH1D("h_triggerID","h_triggerID",1e9,0,1e9);
     tree_in->Draw("TriggerID>>h_triggerID");
@@ -426,14 +692,14 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     cout<<"max_triggerID = "<<max_triggerID<<" Entries = "<<tree_in->GetEntries()<<endl;
     TCanvas *c2 = new TCanvas("c2","c2",800,600);
     c2->SaveAs("MuonCandidate2.pdf(");
-    TH1D *h_chi2perndf_x = new TH1D("h_chi2perndf_x","chi2/ndf of xz plane;chi2/ndf",200,0,50);
+    TH1D *h_chi2perndf_x = new TH1D("h_chi2perndf_x","chi2/ndf of xz plane;chi2/ndf",1000,0,50);
     TH1D *h_nHits = new TH1D("h_nHits_x","nHits;nHits",100,0,100);
     TH2D *h2_nHits_costheta = new TH2D("h2_nHits_costheta","nHits vs cos#theta;nHits;cos#theta",100,0,100,20,0,1);
     TH1D *h_slope_x = new TH1D("h_slope_x","slope of xz plane;tan#theta",50,-1,1);
     TH1D *h_intercept_x = new TH1D("h_intercept_x","intercept of xz plane;intercept",100,-500,500);
     TH1D *h_triggerlayer0_x = new TH1D("h_triggerlayer0_x","trigger layer 0 x;X [mm]",100,-500,500);
     TH1D *h_triggerlayer1_x = new TH1D("h_triggerlayer1_x","trigger layer 1 x;X [mm]",100,-500,500);
-    TH1D *h_chi2perndf_y = new TH1D("h_chi2perndf_y","chi2/ndf of yz plane;chi2/ndf",200,0,50);
+    TH1D *h_chi2perndf_y = new TH1D("h_chi2perndf_y","chi2/ndf of yz plane;chi2/ndf",1000,0,50);
     TH1D *h_slope_y = new TH1D("h_slope_y","slope of yz plane;tan#theta",50,-1,1);
     TH1D *h_intercept_y = new TH1D("h_intercept_y","intercept of yz plane;intercept",100,-500,500);
     TH1D *h_triggerlayer0_y = new TH1D("h_triggerlayer0_y","trigger layer 0 y;Y [mm]",100,-500,500);
@@ -466,6 +732,38 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                 h_ADC_hittag1[trigger_layer1][i_chip][i_chan]->Integral(0, 4096));
         }
     }
+    TH1D * h_residual_x [Layer_No];
+    TH1D * h_residual_y [Layer_No];
+    TH2D * h2_residual_x[Layer_No];
+    TH2D * h2_residual_y[Layer_No];
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        sprintf(char_tmp,"h_residual_x_%d",i_layer);
+        h_residual_x[i_layer] = new TH1D(char_tmp,char_tmp,100,-50,50);
+        sprintf(char_tmp,"h_residual_y_%d",i_layer);
+        h_residual_y[i_layer] = new TH1D(char_tmp,char_tmp,100,-50,50);
+        h_residual_x[i_layer]->SetDirectory(0);
+        h_residual_y[i_layer]->SetDirectory(0);
+        sprintf(char_tmp,"h2_residual_x_%d",i_layer);
+        h2_residual_x[i_layer] = new TH2D(char_tmp,char_tmp,18,-HBU_X*3/2,HBU_X*3/2,1000,-HBU_X*3/2,HBU_X*3/2);
+        sprintf(char_tmp,"h2_residual_y_%d",i_layer);
+        h2_residual_y[i_layer] = new TH2D(char_tmp,char_tmp,18,-HBU_Y/2,HBU_Y/2,1000,-HBU_Y/2,HBU_Y/2);
+        h2_residual_x[i_layer]->SetDirectory(0);
+        h2_residual_y[i_layer]->SetDirectory(0);
+    }
+    TH1D * h_ADC_MuonTrack[Layer_No][chip_No][channel_No];
+    TH1D * h_ADC_NotMuonTrack[Layer_No][chip_No][channel_No];
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+            for (int i_chan = 0; i_chan < channel_No; ++i_chan){
+                sprintf(char_tmp,"h_ADC_MuonTrack_%d_%d_%d",i_layer,i_chip,i_chan);
+                h_ADC_MuonTrack[i_layer][i_chip][i_chan] = new TH1D(char_tmp,char_tmp,128,-1000,3096);
+                sprintf(char_tmp,"h_ADC_NotMuonTrack_%d_%d_%d",i_layer,i_chip,i_chan);
+                h_ADC_NotMuonTrack[i_layer][i_chip][i_chan] = new TH1D(char_tmp,char_tmp,128,-1000,3096);
+                h_ADC_MuonTrack[i_layer][i_chip][i_chan]->SetDirectory(0);
+                h_ADC_NotMuonTrack[i_layer][i_chip][i_chan]->SetDirectory(0);
+            }
+        }
+    }
     for (int i = 0; i < tree_in->GetEntries(); ++i){
     // for (int i = 0; i < 10000; ++i){
         // Edep=0;
@@ -475,7 +773,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         // _Event_No=_triggerID;
         // _Detector_ID=1;
         if (_triggerIDs.size() > 0 && _triggerID == _triggerIDs.back()) {
-            cout << "Duplicate trigger ID: " << _triggerID << endl;
+            // cout << "Duplicate trigger ID: " << _triggerID << endl;
             // continue; // Skip this event if the trigger ID is a duplicate
         }
         _triggerIDs.push_back(_triggerID);
@@ -528,21 +826,28 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         h_time_full->Fill(_Event_Time);
         h_time_full_bin1->Fill(_Event_Time);
         nhits = 0;
-
+        std::map <std::tuple<int,int,int>, int> ADC;
+        for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
+            decode_cellid(cellID->at(i_hit),layer,chip,channel);
+            if (ExcludeCh(layer,chip,channel)) continue;
+            if (hitTag->at(i_hit) == 1){
+                if (ADC.find(std::make_tuple(layer,chip,channel)) == ADC.end()){
+                    ADC[std::make_tuple(layer,chip,channel)] = HG_Charge->at(i_hit) - ped_new[layer][chip][channel];
+                }else{
+                    std::cout << "ADC exist error: " << layer << " " << chip << " " << channel << std::endl;
+                }
+            }
+        }
         if ((trigger0_MIP_exist > 0 && trigger1_MIP_exist > 0)){
             MuonCandidate.push_back(i);
             std::map <std::tuple<int,int,int>, bool> MIP_exist;
             std::map <std::tuple<int,int,int>, bool> Hit_exist;
+            std::map <std::tuple<int,int,int>, int> ADC;
             for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
                 decode_cellid(cellID->at(i_hit),layer,chip,channel);
                 double hitE=0;
                 if (ExcludeCh(layer,chip,channel)) continue;
-                // if( (HG_Charge->at(i_hit))-ped_new[layer][chip][channel] < gain_plat[layer][chip][channel]-SwitchPoint )
-                // {
-                    hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                // }else{
-                    // hitE=( LG_Charge->at(i_hit) - ped_charge[layer][chip][channel] )*gain_ratio[layer][chip][channel]*MIP_E/MIP[layer][chip][channel];
-                // } 
+                hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
                 if(hitE > 0.5 * MIP_E){
                     nhits++;
                     if (MIP_exist.find(std::make_tuple(layer,chip,channel)) == MIP_exist.end()){
@@ -557,12 +862,14 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                     }else{
                         std::cout << "Hit exist error: " << layer << " " << chip << " " << channel << std::endl;
                     }
+                    if (ADC.find(std::make_tuple(layer,chip,channel)) == ADC.end()){
+                        ADC[std::make_tuple(layer,chip,channel)] = HG_Charge->at(i_hit) - ped_new[layer][chip][channel];
+                    }else{
+                        std::cout << "ADC exist error: " << layer << " " << chip << " " << channel << std::endl;
+                    }
                 }
             }
-            // h_display->SetTitle(Form("Event %d",i));
-            // h_display->GetZaxis()->SetRangeUser(0,1000);
-            // h_display->Draw("box2");
-            // h_display->Write(Form("display_%d",i));
+
             TCanvas *c_2D = new TCanvas("c_2D", "c_2D", 48, 130, 1000, 723);
 
             c_2D->Divide(1,2);
@@ -583,14 +890,16 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                 double hitE=0;
                 if (ExcludeCh(layer,chip,channel)) continue;
                 hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                if(hitE > 0.5 * MIP_E) h2_display_zx->Fill(z_layer_cosmic(layer),Pos_X(channel,chip),hitE);
+                // Apply x_offset for layer-specific offset correction
+                double x_corrected = Pos_X(channel,chip);
+                if(hitE > 0.5 * MIP_E) h2_display_zx->Fill(z_layer_cosmic(layer),x_corrected,hitE);
             }
             double trigger0_z = z_layer_cosmic(trigger_layer0);
             double trigger1_z = z_layer_cosmic(trigger_layer1);
             h2_display_zx->SetTitle(Form("Event %d",i));
             // h2_display_zx->GetYaxis()->SetRangeUser(0,1000);
             // h2_display_zx->Draw("colz");
-            std::tuple <double,double,double, int> fit_result = FitMuonTrack(h2_display_zx);
+            std::tuple <double,double,double, int> fit_result = FitMuonTrack_withOffset(h2_display_zx, x_offset);
             h_chi2perndf_x->Fill(std::get<2>(fit_result));
             h_nHits->Fill(nhits);
             h_slope_x->Fill(std::get<0>(fit_result));
@@ -616,13 +925,15 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                 decode_cellid(cellID->at(i_hit),layer,chip,channel);
                 double hitE=0;
                 hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                if(hitE > 0.5 * MIP_E) h2_display_zy->Fill(z_layer_cosmic(layer),Pos_Y(channel,chip),hitE);
+                // Apply y_offset for layer-specific offset correction
+                double y_corrected = Pos_Y(channel,chip);
+                if(hitE > 0.5 * MIP_E) h2_display_zy->Fill(z_layer_cosmic(layer),y_corrected,hitE);
             }
             h2_display_zy->SetTitle(Form("Event %d",i));
             // h2_display_zy->GetYaxis()->SetRangeUser(0,1000);
             // h2_display_zy->Draw("colz");
             // FitMuonTrack(h2_display_zy);
-            std::tuple <double,double,double, int> fit_result2 = FitMuonTrack(h2_display_zy);
+            std::tuple <double,double,double, int> fit_result2 = FitMuonTrack_withOffset(h2_display_zy, y_offset);
             h_chi2perndf_y->Fill(std::get<2>(fit_result2));
             // h_nHits_y->Fill(std::get<3>(fit_result2));
             h_slope_y->Fill(std::get<0>(fit_result2));
@@ -649,63 +960,81 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             // c_2D->SaveAs("MuonCandidate2.pdf");
             // c_2D->SaveAs(Form("MuonCandidate_%d.png",i));
             //denominator events
-            if (trigger0_MIP_exist > 1 || trigger1_MIP_exist > 1){
-                std::cout << "Trigger Layer has several Hits: " << trigger0_MIP_exist << " " << trigger1_MIP_exist << std::endl;
-                std::cout << "Trigger Layer 0: " << trigger_layer0_x << " " << trigger_layer0_y << std::endl;
-                int channel0 = 0;
-                int chip0 = 0;
-                inverse(trigger_layer0_x, trigger_layer0_y, chip0, channel0);
-                std::cout << "Trigger Layer 0 Inverse: " << chip0 << " " << channel0 << std::endl;
-                int channel1 = 0;
-                int chip1 = 0;
-                inverse(trigger_layer1_x, trigger_layer1_y, chip1, channel1);
-                std::cout << "Trigger Layer 1 Inverse: " << chip1 << " " << channel1 << std::endl;
-                if (trigger0_MIP_exist>1){
-                    h2_MIP_double0->Fill(trigger_layer0_x, trigger_layer0_y);
-                }
-                if (trigger1_MIP_exist>1){
-                    h2_MIP_double1->Fill(trigger_layer1_x, trigger_layer1_y);
-                }
-            }
-            if ( trigger0_MIP_exist == 1 && trigger1_MIP_exist == 1 && 
-                std::get<2>(fit_result) < 5 && std::get<2>(fit_result2) < 5 &&
-                abs(trigger_layer0_x - trigger0_xy.first) < 20 &&
-                abs(trigger_layer0_y - trigger0_xy.second) < 20 &&
-                abs(trigger_layer1_x - trigger1_xy.first) < 20 &&
-                abs(trigger_layer1_y - trigger1_xy.second) < 20){
+            // if ( trigger0_MIP_exist == 1 && trigger1_MIP_exist == 1 && 
+            if ( std::get<2>(fit_result) < 5 && std::get<2>(fit_result2) < 5 &&
+                std::get<2>(fit_result) > 0.5 && std::get<2>(fit_result2) > 0.5){
+                // abs(trigger_layer0_x - trigger0_xy.first) < 20 &&
+                // abs(trigger_layer0_y - trigger0_xy.second) < 20 &&
+                // abs(trigger_layer1_x - trigger1_xy.first) < 20 &&
+                // abs(trigger_layer1_y - trigger1_xy.second) < 20){
                     // passing cell 
                     for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
                         double x = std::get<0>(fit_result) * z_layer_cosmic(i_layer) + std::get<1>(fit_result);
                         double y = std::get<0>(fit_result2) * z_layer_cosmic(i_layer) + std::get<1>(fit_result2);
+                        
+                        // Apply offset correction to expected position
+                        double x_expected = x + x_offset[i_layer];
+                        double y_expected = y + y_offset[i_layer];
+                        
                         int chip =0;
                         int channel = 0;
-                        int i = x/40.3;
-                        int j = y/40.3; // if y= -80, j =
-                        if ( abs(x - i*40.3-std::copysign(1,x)*20.15)> 19 || abs(y - j*40.3-std::copysign(1,y)*20.15) > 19) {
-                            // std::cout << "Error: x or y out of range: " << x << " " << y << std::endl;
-                            // inverse(x,y,chip,channel);
-                            // std::cout << "After inverse: chip = " << chip << " channel = " << channel << std::endl;
-                            continue;
-                        }
-                        if ( abs(x) > HBU_X*1.5 || abs(y) > HBU_Y*0.5) continue;
-                        inverse(x,y,chip,channel);
+                        int i = x_expected/40.3;
+                        int j = y_expected/40.3; // if y= -80, j =
+                        if ( abs(x_expected) > HBU_X*1.5 || abs(y_expected) > HBU_Y*0.5) continue;
+                        inverse(x_expected,y_expected,chip,channel);
                         if (chip < 0 || chip >= chip_No || channel < 0 || channel >= channel_No) continue;
-                        // if (ExcludeCh(i_layer,chip,channel)) continue;
-                        bool is_MIP = false;
-                        if (MIP_exist.find(std::make_tuple(i_layer,chip,channel)) != MIP_exist.end()){
-                            is_MIP = MIP_exist[std::make_tuple(i_layer,chip,channel)];
-                        }else{
-                            is_MIP = false;
+                        if ( abs(x_expected - i*40.3-std::copysign(1,x_expected)*20.15) <  19 && abs(y_expected - j*40.3-std::copysign(1,y_expected)*20.15) < 19) {
+                                                        // if (ExcludeCh(i_layer,chip,channel)) continue;
+                            bool is_MIP = false;
+                            if (MIP_exist.find(std::make_tuple(i_layer,chip,channel)) != MIP_exist.end()){
+                                is_MIP = MIP_exist[std::make_tuple(i_layer,chip,channel)];
+                            }else{
+                                is_MIP = false;
+                            }
+                            efficiency3-> Fill(is_MIP, i_layer*chip_No*channel_No + chip*channel_No + channel);
+                            bool is_Hit = false;
+                            if (Hit_exist.find(std::make_tuple(i_layer,chip,channel)) != Hit_exist.end()){
+                                is_Hit = Hit_exist[std::make_tuple(i_layer,chip,channel)];
+                            }else{
+                                is_Hit = false;
+                            }
+                            efficiency4-> Fill(is_Hit, i_layer*chip_No*channel_No + chip*channel_No + channel);
+                            if (ADC.find(std::make_tuple(i_layer,chip,channel)) != ADC.end()){
+                                h_ADC_MuonTrack[i_layer][chip][channel]->Fill(ADC[std::make_tuple(i_layer,chip,channel)]);
+                                ADC.erase(std::make_tuple(i_layer,chip,channel));
+                            }
+                            for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+                                for (int i_chan = 0; i_chan < channel_No; ++i_chan){
+                                    if (i_chip == chip && i_chan == channel) continue;
+                                    if (ADC.find(std::make_tuple(i_layer,i_chip,i_chan)) != ADC.end()){
+                                        h_ADC_NotMuonTrack[i_layer][i_chip][i_chan]->Fill(ADC[std::make_tuple(i_layer,i_chip,i_chan)]);
+                                        ADC.erase(std::make_tuple(i_layer,i_chip,i_chan));
+                                    }
+                                }
+                            }
                         }
-                        efficiency3-> Fill(is_MIP, i_layer*chip_No*channel_No + chip*channel_No + channel);
-                        bool is_Hit = false;
-                        if (Hit_exist.find(std::make_tuple(i_layer,chip,channel)) != Hit_exist.end()){
-                            is_Hit = Hit_exist[std::make_tuple(i_layer,chip,channel)];
-                        }else{
-                            is_Hit = false;
+
+                        int n_MIP = 0;
+                        int chips, channels;
+                        for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+                            for (int i_chan = 0; i_chan < channel_No; ++i_chan){
+                                if (MIP_exist.find(std::make_tuple(i_layer,i_chip,i_chan)) != MIP_exist.end()){
+                                    if (MIP_exist[std::make_tuple(i_layer,i_chip,i_chan)]){
+                                        n_MIP++;
+                                        chips = i_chip;
+                                        channels = i_chan;
+                                    }
+                                }
+                            }
                         }
-                        efficiency4-> Fill(is_Hit, i_layer*chip_No*channel_No + chip*channel_No + channel);
+                        if (n_MIP == 1){
+                            h_residual_x[i_layer]->Fill(Pos_X(channels,chips) - x_expected);
+                            h2_residual_x[i_layer]->Fill(Pos_X(channels,chips),x_expected);
+                            h_residual_y[i_layer]->Fill(Pos_Y(channels,chips) - y_expected);
+                            h2_residual_y[i_layer]->Fill(Pos_Y(channels,chips),y_expected);
+                        }
                     }
+
             }
             delete c_2D;
             delete h2_display_zx;
@@ -713,12 +1042,29 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             MIP_exist.clear();
             Hit_exist.clear();
         }
+        ADC.clear();
     }
     c2->SaveAs("MuonCandidate2.pdf)");
-    fout2->cd();
     // for (int i = 0; i < MuonCandidate.size(); ++i){
     //     cout << "MuonCandidate: " << MuonCandidate[i] << endl;
     // }
+    double x2_offset[40];
+    double y2_offset[40];
+    for (int i = 0; i < 40; ++i){
+        x2_offset[i] = h_residual_x[i]->GetMean();
+        y2_offset[i] = h_residual_y[i]->GetMean();
+    }
+    AllChannelSave("MuonADC_offset.root",h_ADC_MuonTrack,h_ADC_NotMuonTrack,saveornot);
+    AllLayerSave("MuonResidual_offset.root",h_residual_x,h_residual_y,saveornot);
+
+    TFile *fout3 = new TFile("MuonResidual2_offset.root","RECREATE");
+    fout3->cd();
+    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+        h2_residual_x[i_layer]->Write();
+        h2_residual_y[i_layer]->Write();
+    }
+    
+    fout2->cd();
     TCanvas *c3 = new TCanvas("c3","c3",800,600);
     h_chi2perndf_x->SetLineColor(kRed);
     h_chi2perndf_x->Scale(1./h_chi2perndf_x->Integral());
@@ -735,7 +1081,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     leg->SetBorderSize(0);
     leg->SetFillColor(0);
     leg->Draw();
-    c3->SaveAs("MuonCandidate2_chi2.png");
+    c3->SaveAs("MuonCandidate2_offset_chi2.png");
     c3->SetLogy();
     h_nHits_full->SetLineColor(kRed);
     h_nHits_full->SetLineWidth(2);
@@ -759,13 +1105,13 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     leg2->SetBorderSize(0);
     leg2->SetFillColor(0);
     leg2->Draw();
-    c3->SaveAs("MuonCandidate2_nHits.png");
+    c3->SaveAs("MuonCandidate2_offset_nHits.png");
     TEfficiency *efficiency = new TEfficiency(*h_triggerID_MuonCandidate, *h_triggerID_full);
     TCanvas *c_eff = new TCanvas("c_eff","c_eff",800,600);
     efficiency->SetTitle("MuonCandidate Efficiency; Trigger ID; Efficiency");
     // efficiency->SetLineColor(kRed);
     efficiency->Draw();
-    c_eff->SaveAs("MuonCandidate2_efficiency.png");
+    c_eff->SaveAs("MuonCandidate2_offset_efficiency.png");
     TCanvas *c4 = new TCanvas("c4","c4",800,600);
     c4->Divide(2,1);
     c4->cd(1);
@@ -783,7 +1129,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_triggerID_MuonCandidate->Scale(1./(h_triggerID_MuonCandidate->GetXaxis()->GetXmax()/h_triggerID_MuonCandidate->GetNbinsX())); // Scale
     h_triggerID_MuonCandidate->SetTitle("MuonCandidate Trigger ID Distribution");
     h_triggerID_MuonCandidate->Draw("hist");
-    c4->SaveAs("MuonCandidate2_triggerID.png");
+    c4->SaveAs("MuonCandidate2_offset_triggerID.png");
     TCanvas *c51 = new TCanvas("c51","c51",800,1500);
     c51->Divide(1,3);
     c51->cd(1);
@@ -814,7 +1160,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     efficiency2->SetTitle("MuonCandidate Efficiency; Event Time [s]; Efficiency");
     // efficiency2->SetLineColor(kRed);
     efficiency2->Draw();
-    c51->SaveAs("MuonCandidate2_time.png");
+    c51->SaveAs("MuonCandidate2_offset_time.png");
     TCanvas *c5 = new TCanvas("c5","c5",800,1500);
     c5->Divide(1,3);
     c5->cd(1);
@@ -870,7 +1216,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     }
     c6->Update();
     c6->Modified();
-    c6->SaveAs("MuonCandidate2_efficiency3.png");
+    c6->SaveAs("MuonCandidate2_offset_efficiency3.png");
     for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
         TCanvas *c1 = new TCanvas(Form("c1_layer%d",i_layer),Form("c1_layer%d",i_layer),800,600);
         graph->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
@@ -891,7 +1237,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
             gSystem->mkdir(Form("Layer_%d",i_layer), true);
         }
-        c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency_layer%d.png", i_layer, i_layer));
+        c1->SaveAs(Form("Layer_%d/MuonCandidate_offset_efficiency_layer%d.png", i_layer, i_layer));
     }
     TCanvas *c7 = new TCanvas("c7","c7",8000,600);
     efficiency4->SetTitle("Efficiency of Hit Tag in each cell; Layer*Chip*Channel; Efficiency");
@@ -922,7 +1268,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     }
     c7->Update();
     c7->Modified();
-    c7->SaveAs("MuonCandidate2_efficiency4.png");
+    c7->SaveAs("MuonCandidate2_offset_efficiency4.png");
     for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
         TCanvas *c1 = new TCanvas(Form("c1_layer%d_hit",i_layer),Form("c1_layer%d_hit",i_layer),800,600);
         graph2->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
@@ -952,15 +1298,42 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
             gSystem->mkdir(Form("Layer_%d",i_layer), true);
         }
-        c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency4_layer%d.png", i_layer, i_layer));
+        c1->SaveAs(Form("Layer_%d/MuonCandidate_offset_efficiency4_layer%d.png", i_layer, i_layer));
     }
     TCanvas *c8 = new TCanvas("c8","c8",800,600);
     h2_nHits_costheta->Draw("COLZ");
     h2_nHits_costheta->GetXaxis()->SetTitle("nHits");
     h2_nHits_costheta->GetYaxis()->SetTitle("cos(theta)");
     h2_nHits_costheta->SetTitle("nHits vs cos(theta) for Muon Candidates");
-    c8->SaveAs("MuonCandidate2_nHits_costheta.png");
-
+    c8->SaveAs("MuonCandidate2_offset_nHits_costheta.png");
+    TCanvas *c9 = new TCanvas("c9","c9",800,600);
+    h_costheta->SetLineColor(kRed);
+    h_costheta->SetLineWidth(2);
+    h_costheta->GetXaxis()->SetTitle("cos(theta)");
+    h_costheta->GetYaxis()->SetTitle("Counts");
+    h_costheta->Scale(1./(h_costheta->Integral()));
+    h_costheta_chi2_under5->SetLineColor(kBlue);
+    h_costheta_chi2_under5->SetLineWidth(2);
+    h_costheta_chi2_under5->GetXaxis()->SetTitle("cos(theta)");
+    h_costheta_chi2_under5->GetYaxis()->SetTitle("Counts");
+    h_costheta_chi2_under5->Scale(1./(h_costheta_chi2_under5->Integral()));
+    h_costheta->Draw("hist");
+    h_costheta_chi2_under5->Draw("hist same");
+    TH1D *h_costheta_MC = h_costheta2( trigger_layer0, trigger_layer1);
+    h_costheta_MC->SetLineColor(kGreen);
+    h_costheta_MC->SetLineWidth(2);
+    h_costheta_MC->GetXaxis()->SetTitle("cos(theta)");
+    h_costheta_MC->GetYaxis()->SetTitle("Counts");
+    h_costheta_MC->Scale(1./(h_costheta_MC->Integral()));
+    h_costheta_MC->Draw("hist same");
+    TLegend *leg3 = new TLegend(0.2,0.6,0.5,0.9);
+    leg3->AddEntry(h_costheta,"Muon Candidate cos(theta)","l");
+    leg3->AddEntry(h_costheta_chi2_under5,"Muon Candidate cos(theta) #chi^{2}/NDF < 5","l");
+    leg3->AddEntry(h_costheta_MC,"MC","l");
+    leg3->SetBorderSize(0);
+    leg3->SetFillColor(0);
+    leg3->Draw();
+    c9->SaveAs("MuonCandidate2_offset_costheta.png");
     h2_nHits_costheta->Write();
     efficiency2->Write();
     h_chi2perndf_x->Write();
@@ -996,6 +1369,36 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h2_skipped_Hit1->Write();
     h2_ratio_passMIP0->Write();
     h2_ratio_passMIP1->Write();
+    
+    // Save offset values to TTree
+    TTree* offset_tree = new TTree("offset_values", "Applied Offset Values");
+    int layer_id;
+    double x_offset_val, y_offset_val;
+    
+    offset_tree->Branch("layer", &layer_id, "layer/I");
+    offset_tree->Branch("x_offset", &x_offset_val, "x_offset/D");
+    offset_tree->Branch("y_offset", &y_offset_val, "y_offset/D");
+    
+    for (int i = 0; i < 40; ++i) {
+        layer_id = i;
+        x_offset_val = x2_offset[i];
+        y_offset_val = y2_offset[i];
+        offset_tree->Fill();
+    }
+    
+    offset_tree->Write();
+    
+    // Also save offset histograms
+    TH1D *h_x_offset = new TH1D("h_x_offset", "Applied X Offset per Layer", 40, -0.5, 39.5);
+    TH1D *h_y_offset = new TH1D("h_y_offset", "Applied Y Offset per Layer", 40, -0.5, 39.5);
+    
+    for (int i = 0; i < 40; ++i) {
+        h_x_offset->SetBinContent(i+1, x2_offset[i]);
+        h_y_offset->SetBinContent(i+1, y2_offset[i]);
+    }
+    h_x_offset->Write();
+    h_y_offset->Write();
+    
     fout2->Close();           
     fout->Close();
     return 1;
