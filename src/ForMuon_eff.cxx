@@ -403,25 +403,27 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     TH1D *h_triggerID = new TH1D("h_triggerID","h_triggerID",1e9,0,1e9);
     tree_in->Draw("TriggerID>>h_triggerID");
     max_triggerID = GetMaxXWithContent(h_triggerID);
+    int min_triggerID = GetMinXWithContent(h_triggerID);
     TCanvas *c_triggerID = new TCanvas("c_triggerID","c_triggerID",800,600);
     h_triggerID->SetTitle("Trigger ID Distribution");
     h_triggerID->GetXaxis()->SetTitle("Trigger ID");
     h_triggerID->GetYaxis()->SetTitle("Counts");
     h_triggerID->SetStats(0);
-    h_triggerID->GetXaxis()->SetRangeUser(0,max_triggerID+5);
+    h_triggerID->GetXaxis()->SetRangeUser(min_triggerID-5,max_triggerID+5);
     h_triggerID->Draw();
     c_triggerID->SetLogy();
     c_triggerID->SaveAs("triggerID.png");
     TH1D *h_time = new TH1D("h_time","h_time",1e9,0,1e9);
     tree_in->Draw("Event_Time>>h_time","Event_Time<1e5");
     int max_time = GetMaxXWithContent(h_time);
+    int min_time = GetMinXWithContent(h_time);
     cout<<"max_time = "<<max_time<<endl;
-    TH1D *h_time_full = new TH1D("h_time_full","h_time_full;Event_Time",20,0, max_time+1);
-    TH1D *h_time_MuonCandidate = new TH1D("h_time_MuonCandidate","h_time_MuonCandidate;Event_Time",20,0, max_time+1);
-    TH1D *h_time_full_bin1 = new TH1D("h_time_full_bin1","h_time_full_bin1;Event_Time",max_time+1,0, max_time+1);
-    TH1D *h_time_MuonCandidate_bin1 = new TH1D("h_time_MuonCandidate_bin1","h_time_MuonCandidate_bin1;Event_Time",max_time+1,0, max_time+1);
-    TH1D *h_triggerID_full = new TH1D("h_triggerID_full","h_triggerID_full;trigger_ID",20,0, max_triggerID+1);
-    TH1D *h_triggerID_MuonCandidate = new TH1D("h_triggerID_MuonCandidate","h_triggerID_MuonCandidate;trigger_ID",20,0, max_triggerID+1);
+    TH1D *h_time_full = new TH1D("h_time_full","h_time_full;Event_Time",20,min_time, max_time+1);
+    TH1D *h_time_MuonCandidate = new TH1D("h_time_MuonCandidate","h_time_MuonCandidate;Event_Time",20,min_time, max_time+1);
+    TH1D *h_time_full_bin1 = new TH1D("h_time_full_bin1","h_time_full_bin1;Event_Time",max_time+1-min_time,min_time, max_time+1);
+    TH1D *h_time_MuonCandidate_bin1 = new TH1D("h_time_MuonCandidate_bin1","h_time_MuonCandidate_bin1;Event_Time",max_time+1-min_time,min_time, max_time+1);
+    TH1D *h_triggerID_full = new TH1D("h_triggerID_full","h_triggerID_full;trigger_ID",20,min_triggerID, max_triggerID+1);
+    TH1D *h_triggerID_MuonCandidate = new TH1D("h_triggerID_MuonCandidate","h_triggerID_MuonCandidate;trigger_ID",20,min_triggerID, max_triggerID+1);
     max_triggerID = GetMaxXWithContent(h_triggerID);
     cout<<"max_triggerID = "<<max_triggerID<<" Entries = "<<tree_in->GetEntries()<<endl;
     TCanvas *c2 = new TCanvas("c2","c2",800,600);
@@ -773,14 +775,14 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_triggerID_full->SetLineWidth(2);
     h_triggerID_full->GetXaxis()->SetTitle("Trigger ID");
     h_triggerID_full->GetYaxis()->SetTitle("Events/TriggerID");
-    h_triggerID_full->Scale(1./(h_triggerID_full->GetXaxis()->GetXmax()/h_triggerID_full->GetNbinsX())); // Scale
+    h_triggerID_full->Scale(1./((h_triggerID_full->GetXaxis()->GetXmax()-h_triggerID_full->GetXaxis()->GetXmin())/h_triggerID_full->GetNbinsX())); // Scale
     h_triggerID_full->Draw("hist");
     c4->cd(2);
     h_triggerID_MuonCandidate->SetLineColor(kBlue);
     h_triggerID_MuonCandidate->SetLineWidth(2);
     h_triggerID_MuonCandidate->GetXaxis()->SetTitle("Trigger ID");
     h_triggerID_MuonCandidate->GetYaxis()->SetTitle("Events/TriggerID");
-    h_triggerID_MuonCandidate->Scale(1./(h_triggerID_MuonCandidate->GetXaxis()->GetXmax()/h_triggerID_MuonCandidate->GetNbinsX())); // Scale
+    h_triggerID_MuonCandidate->Scale(1./((h_triggerID_MuonCandidate->GetXaxis()->GetXmax()-h_triggerID_MuonCandidate->GetXaxis()->GetXmin())/h_triggerID_MuonCandidate->GetNbinsX())); // Scale
     h_triggerID_MuonCandidate->SetTitle("MuonCandidate Trigger ID Distribution");
     h_triggerID_MuonCandidate->Draw("hist");
     c4->SaveAs("MuonCandidate2_triggerID.png");
@@ -798,7 +800,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_time_full->GetXaxis()->SetTitle("Event Time [s]");
     h_time_full->GetYaxis()->SetTitle("Hz");
     h_time_full->SetTitle("Full Data Event Time Distribution");
-    h_time_full->Scale(1./(h_time_full->GetXaxis()->GetXmax()/h_time_full->GetNbinsX())); // Scale to Hz
+    h_time_full->Scale(1./((h_time_full->GetXaxis()->GetXmax()-h_time_full->GetXaxis()->GetXmin())/h_time_full->GetNbinsX())); // Scale to Hz
     h_time_full->Draw("hist");
     c51->cd(2);
     h_time_MuonCandidate->SetLineColor(kBlue);
@@ -806,7 +808,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_time_MuonCandidate->GetXaxis()->SetTitle("Event Time [s]");
     h_time_MuonCandidate->GetYaxis()->SetTitle("Hz");
     h_time_MuonCandidate->SetTitle("MuonCandidate Event Time Distribution");
-    h_time_MuonCandidate->Scale(1./(h_time_MuonCandidate->GetXaxis()->GetXmax()/h_time_MuonCandidate->GetNbinsX())); // Scale to Hz
+    h_time_MuonCandidate->Scale(1./((h_time_MuonCandidate->GetXaxis()->GetXmax()-h_time_MuonCandidate->GetXaxis()->GetXmin())/h_time_MuonCandidate->GetNbinsX())); // Scale to Hz
     h_time_MuonCandidate->Draw("hist");
     c51->cd(3);
     TEfficiency *efficiency2 = new TEfficiency(*h_time_MuonCandidate, *h_time_full);
@@ -823,7 +825,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_time_full_bin1->GetXaxis()->SetTitle("Event Time [s]");
     h_time_full_bin1->GetYaxis()->SetTitle("Hz");
     h_time_full_bin1->SetTitle("Full Data Event Time Distribution (bin 1)");
-    h_time_full_bin1->Scale(1./(h_time_full_bin1->GetXaxis()->GetXmax()/h_time_full_bin1->GetNbinsX())); // Scale
+    h_time_full_bin1->Scale(1./((h_time_full_bin1->GetXaxis()->GetXmax()-h_time_full_bin1->GetXaxis()->GetXmin())/h_time_full_bin1->GetNbinsX())); // Scale
     h_time_full_bin1->Draw("hist");
     c5->cd(2);
     h_time_MuonCandidate_bin1->SetLineColor(kBlue);
@@ -831,7 +833,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     h_time_MuonCandidate_bin1->GetXaxis()->SetTitle("Event Time [s]");
     h_time_MuonCandidate_bin1->GetYaxis()->SetTitle("Hz");
     h_time_MuonCandidate_bin1->SetTitle("MuonCandidate Event Time Distribution (bin 1)");
-    h_time_MuonCandidate_bin1->Scale(1./(h_time_MuonCandidate_bin1->GetXaxis()->GetXmax()/h_time_MuonCandidate_bin1->GetNbinsX())); // Scale
+    h_time_MuonCandidate_bin1->Scale(1./((h_time_MuonCandidate_bin1->GetXaxis()->GetXmax()-h_time_MuonCandidate_bin1->GetXaxis()->GetXmin())/h_time_MuonCandidate_bin1->GetNbinsX())); // Scale
     h_time_MuonCandidate_bin1->Draw("hist");
     c5->cd(3);
     TEfficiency *efficiency31 = new TEfficiency(*h_time_MuonCandidate_bin1, *h_time_full_bin1);
@@ -841,119 +843,119 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
     efficiency31->Draw();
     c5->SaveAs("MuonCandidate2_time_bin1.png");
     // c_eff2->SaveAs("MuonCandidate2_time_efficiency.png");
-    TCanvas *c6 = new TCanvas("c6","c6",8000,600);
-    efficiency3->SetTitle("Efficiency of 1/2 MIP in each cell; Layer*Chip*Channel; Efficiency");
-    // efficiency3->SetLineColor(kRed);
-    // efficiency3->SetMarkerColor(kRed);
-    // efficiency3->SetMarkerStyle(20);
-    // efficiency3->SetMarkerSize(0.5);
-    efficiency3->Draw();
-    c6->Update();
-    auto graph = efficiency3->GetPaintedGraph();
-    graph->GetXaxis()->SetRangeUser(0, Layer_No*chip_No*channel_No);
-    graph->Draw("AP");
-    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
-        TLine *line = new TLine(i_layer*chip_No*channel_No, 0, i_layer*chip_No*channel_No, 1);
-        line->SetLineColor(kRed);
-        line->SetLineStyle(2);
-        line->Draw("same");
-        TLatex *latex_layer = new TLatex();
-        latex_layer->SetTextSize(0.03);
-        latex_layer->SetTextFont(42);
-        if (i_layer == trigger_layer0 || i_layer == trigger_layer1){
-            latex_layer->SetTextColor(kBlue);
-            latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.09, Form("Trigger Layer"));
-        }else{
-            latex_layer->SetTextColor(kBlack);
-        }
-        latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.05, Form("Layer %d", i_layer));
-    }
-    c6->Update();
-    c6->Modified();
-    c6->SaveAs("MuonCandidate2_efficiency3.png");
-    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
-        TCanvas *c1 = new TCanvas(Form("c1_layer%d",i_layer),Form("c1_layer%d",i_layer),800,600);
-        graph->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
-        graph->SetTitle(Form("Efficiency of Layer %d; Chip*Channel; Efficiency", i_layer));
-        graph->Draw("AP");
-        for (int i_chip = 0; i_chip < chip_No; ++i_chip){
-            TLine *line = new TLine(i_layer*chip_No*channel_No + i_chip*channel_No, 0, i_layer*chip_No*channel_No + i_chip*channel_No, 1);
-            line->SetLineColor(kRed);
-            line->SetLineStyle(2);
-            line->Draw("same");
-            TLatex *latex_chip = new TLatex();
-            latex_chip->SetTextSize(0.03);
-            latex_chip->SetTextFont(42);
-            latex_chip->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ channel_No*0.3, 1.05, Form("Chip %d", i_chip));
-        }
-        c1->Update();
-        c1->Modified();
-        if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
-            gSystem->mkdir(Form("Layer_%d",i_layer), true);
-        }
-        c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency_layer%d.png", i_layer, i_layer));
-    }
-    TCanvas *c7 = new TCanvas("c7","c7",8000,600);
-    efficiency4->SetTitle("Efficiency of Hit Tag in each cell; Layer*Chip*Channel; Efficiency");
-    // efficiency4->SetLineColor(kRed);
-    // efficiency4->SetMarkerColor(kRed);
-    // efficiency4->SetMarkerStyle(20);
-    // efficiency4->SetMarkerSize(0.5);
-    efficiency4->Draw();
-    c7->Update();
-    auto graph2 = efficiency4->GetPaintedGraph();
-    graph2->GetXaxis()->SetRangeUser(0, Layer_No*chip_No*channel_No);
-    graph2->Draw("AP");
-    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
-        TLine *line = new TLine(i_layer*chip_No*channel_No, 0, i_layer*chip_No*channel_No, 1);
-        line->SetLineColor(kRed);
-        line->SetLineStyle(2);
-        line->Draw("same");
-        TLatex *latex_layer = new TLatex();
-        latex_layer->SetTextSize(0.03);
-        latex_layer->SetTextFont(42);
-        if (i_layer == trigger_layer0 || i_layer == trigger_layer1){
-            latex_layer->SetTextColor(kBlue);
-            latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.09, Form("Trigger Layer"));
-        }else{
-            latex_layer->SetTextColor(kBlack);
-        }
-        latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.05, Form("Layer %d", i_layer));
-    }
-    c7->Update();
-    c7->Modified();
-    c7->SaveAs("MuonCandidate2_efficiency4.png");
-    for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
-        TCanvas *c1 = new TCanvas(Form("c1_layer%d_hit",i_layer),Form("c1_layer%d_hit",i_layer),800,600);
-        graph2->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
-        graph2->SetTitle(Form("Efficiency of Hit Tag in Layer %d; Chip*Channel; Efficiency", i_layer));
-        graph2->Draw("AP");
-        for (int i_chip = 0; i_chip < chip_No; ++i_chip){
-            TLine *line = new TLine(i_layer*chip_No*channel_No + i_chip*channel_No, 0, i_layer*chip_No*channel_No + i_chip*channel_No, 1);
-            line->SetLineColor(kRed);
-            line->SetLineStyle(2);
-            line->Draw("same");
-            TLatex *latex_chip = new TLatex();
-            latex_chip->SetTextSize(0.03);
-            latex_chip->SetTextFont(42);
-            latex_chip->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ channel_No*0.3, 1.05, Form("Chip %d", i_chip));
-            for (int i_channel = 0; i_channel < channel_No; ++i_channel){
-                if (efficiency4->GetEfficiency(i_layer*chip_No*channel_No + i_chip*channel_No + i_channel) < 0.4 ){
-                    TLatex *latex_channel = new TLatex();
-                    latex_channel->SetTextSize(0.03);
-                    latex_channel->SetTextFont(42);
-                    latex_channel->SetTextColor(kRed);
-                    latex_channel->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ i_channel, 0.3, Form("Channel %d", i_channel));
-                }
-            }
-        }
-        c1->Update();
-        c1->Modified();
-        if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
-            gSystem->mkdir(Form("Layer_%d",i_layer), true);
-        }
-        c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency4_layer%d.png", i_layer, i_layer));
-    }
+    // TCanvas *c6 = new TCanvas("c6","c6",8000,600);
+    // efficiency3->SetTitle("Efficiency of 1/2 MIP in each cell; Layer*Chip*Channel; Efficiency");
+    // // efficiency3->SetLineColor(kRed);
+    // // efficiency3->SetMarkerColor(kRed);
+    // // efficiency3->SetMarkerStyle(20);
+    // // efficiency3->SetMarkerSize(0.5);
+    // efficiency3->Draw();
+    // c6->Update();
+    // auto graph = efficiency3->GetPaintedGraph();
+    // graph->GetXaxis()->SetRangeUser(0, Layer_No*chip_No*channel_No);
+    // graph->Draw("AP");
+    // for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+    //     TLine *line = new TLine(i_layer*chip_No*channel_No, 0, i_layer*chip_No*channel_No, 1);
+    //     line->SetLineColor(kRed);
+    //     line->SetLineStyle(2);
+    //     line->Draw("same");
+    //     TLatex *latex_layer = new TLatex();
+    //     latex_layer->SetTextSize(0.03);
+    //     latex_layer->SetTextFont(42);
+    //     if (i_layer == trigger_layer0 || i_layer == trigger_layer1){
+    //         latex_layer->SetTextColor(kBlue);
+    //         latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.09, Form("Trigger Layer"));
+    //     }else{
+    //         latex_layer->SetTextColor(kBlack);
+    //     }
+    //     latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.05, Form("Layer %d", i_layer));
+    // }
+    // c6->Update();
+    // c6->Modified();
+    // c6->SaveAs("MuonCandidate2_efficiency3.png");
+    // for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+    //     TCanvas *c1 = new TCanvas(Form("c1_layer%d",i_layer),Form("c1_layer%d",i_layer),800,600);
+    //     graph->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
+    //     graph->SetTitle(Form("Efficiency of Layer %d; Chip*Channel; Efficiency", i_layer));
+    //     graph->Draw("AP");
+    //     for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+    //         TLine *line = new TLine(i_layer*chip_No*channel_No + i_chip*channel_No, 0, i_layer*chip_No*channel_No + i_chip*channel_No, 1);
+    //         line->SetLineColor(kRed);
+    //         line->SetLineStyle(2);
+    //         line->Draw("same");
+    //         TLatex *latex_chip = new TLatex();
+    //         latex_chip->SetTextSize(0.03);
+    //         latex_chip->SetTextFont(42);
+    //         latex_chip->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ channel_No*0.3, 1.05, Form("Chip %d", i_chip));
+    //     }
+    //     c1->Update();
+    //     c1->Modified();
+    //     if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
+    //         gSystem->mkdir(Form("Layer_%d",i_layer), true);
+    //     }
+    //     c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency_layer%d.png", i_layer, i_layer));
+    // }
+    // TCanvas *c7 = new TCanvas("c7","c7",8000,600);
+    // efficiency4->SetTitle("Efficiency of Hit Tag in each cell; Layer*Chip*Channel; Efficiency");
+    // // efficiency4->SetLineColor(kRed);
+    // // efficiency4->SetMarkerColor(kRed);
+    // // efficiency4->SetMarkerStyle(20);
+    // // efficiency4->SetMarkerSize(0.5);
+    // efficiency4->Draw();
+    // c7->Update();
+    // auto graph2 = efficiency4->GetPaintedGraph();
+    // graph2->GetXaxis()->SetRangeUser(0, Layer_No*chip_No*channel_No);
+    // graph2->Draw("AP");
+    // for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+    //     TLine *line = new TLine(i_layer*chip_No*channel_No, 0, i_layer*chip_No*channel_No, 1);
+    //     line->SetLineColor(kRed);
+    //     line->SetLineStyle(2);
+    //     line->Draw("same");
+    //     TLatex *latex_layer = new TLatex();
+    //     latex_layer->SetTextSize(0.03);
+    //     latex_layer->SetTextFont(42);
+    //     if (i_layer == trigger_layer0 || i_layer == trigger_layer1){
+    //         latex_layer->SetTextColor(kBlue);
+    //         latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.09, Form("Trigger Layer"));
+    //     }else{
+    //         latex_layer->SetTextColor(kBlack);
+    //     }
+    //     latex_layer->DrawLatex(i_layer*chip_No*channel_No+ chip_No*channel_No*0.3, 1.05, Form("Layer %d", i_layer));
+    // }
+    // c7->Update();
+    // c7->Modified();
+    // c7->SaveAs("MuonCandidate2_efficiency4.png");
+    // for (int i_layer = 0; i_layer < Layer_No; ++i_layer){
+    //     TCanvas *c1 = new TCanvas(Form("c1_layer%d_hit",i_layer),Form("c1_layer%d_hit",i_layer),800,600);
+    //     graph2->GetXaxis()->SetRangeUser(i_layer*chip_No*channel_No, (i_layer+1)*chip_No*channel_No);
+    //     graph2->SetTitle(Form("Efficiency of Hit Tag in Layer %d; Chip*Channel; Efficiency", i_layer));
+    //     graph2->Draw("AP");
+    //     for (int i_chip = 0; i_chip < chip_No; ++i_chip){
+    //         TLine *line = new TLine(i_layer*chip_No*channel_No + i_chip*channel_No, 0, i_layer*chip_No*channel_No + i_chip*channel_No, 1);
+    //         line->SetLineColor(kRed);
+    //         line->SetLineStyle(2);
+    //         line->Draw("same");
+    //         TLatex *latex_chip = new TLatex();
+    //         latex_chip->SetTextSize(0.03);
+    //         latex_chip->SetTextFont(42);
+    //         latex_chip->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ channel_No*0.3, 1.05, Form("Chip %d", i_chip));
+    //         for (int i_channel = 0; i_channel < channel_No; ++i_channel){
+    //             if (efficiency4->GetEfficiency(i_layer*chip_No*channel_No + i_chip*channel_No + i_channel) < 0.4 ){
+    //                 TLatex *latex_channel = new TLatex();
+    //                 latex_channel->SetTextSize(0.03);
+    //                 latex_channel->SetTextFont(42);
+    //                 latex_channel->SetTextColor(kRed);
+    //                 latex_channel->DrawLatex(i_layer*chip_No*channel_No+ i_chip*channel_No+ i_channel, 0.3, Form("Channel %d", i_channel));
+    //             }
+    //         }
+    //     }
+    //     c1->Update();
+    //     c1->Modified();
+    //     if (gSystem->AccessPathName(Form("Layer_%d",i_layer))) {
+    //         gSystem->mkdir(Form("Layer_%d",i_layer), true);
+    //     }
+    //     c1->SaveAs(Form("Layer_%d/MuonCandidate_efficiency4_layer%d.png", i_layer, i_layer));
+    // }
     TCanvas *c8 = new TCanvas("c8","c8",800,600);
     h2_nHits_costheta->Draw("COLZ");
     h2_nHits_costheta->GetXaxis()->SetTitle("nHits");

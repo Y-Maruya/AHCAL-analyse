@@ -1,8 +1,9 @@
 #!/bin/bash
 InputRunNumber=$1
-# DatDataPath="/eos/user/s/shunlian/AHCAL/data/stable_7_17/"
-DatDataPath="/eos/user/y/yanghe/AHCAL_data/"
+DatDataPath="/eos/user/s/shunlian/AHCAL/data/stable_7_17/"
+# DatDataPath="/eos/user/y/yanghe/AHCAL_data/"
 # DatDataPath="/eos/user/y/ymaruya/FASER/AHCAL-data/"
+# DatDataPath="/afs/cern.ch/user/g/gjinjing/public/ahcal/"
 get_run_file() {
     local run_number=$1
     local file=$(ls ${DatDataPath}AHCAL_Run${run_number}_*.dat 2>/dev/null | head -n 1)

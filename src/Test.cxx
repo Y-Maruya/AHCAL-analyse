@@ -416,63 +416,63 @@ int raw2Root::Test(string str_dat,string str_ped,string str_dac,string str_MIP,s
                         h2_ChMap->Fill(i_layer*chip_No+i_chip,i_chan,ThGood1peek);
                     }
                 }
-                if (i_layer==6 && i_chip == 6 || i_layer == trigger_layer0 || i_layer == trigger_layer1){
-                    TLine* h_ped_line = new TLine(ped_time[i_layer][chip][channel],0,ped_time[i_layer][chip][channel],h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximum());
-                    TLine* h_mip_line = new TLine(MIP[i_layer][chip][channel]+ped_time[i_layer][chip][channel],0,MIP[i_layer][chip][channel]+ped_time[i_layer][chip][channel],h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximum());
-                    h_ped_line->SetLineColor(kBlack);
-                    h_ped_line->SetLineStyle(2);
-                    h_ped_line->SetLineWidth(2);
-                    h_mip_line->SetLineColor(kGreen);
-                    h_mip_line->SetLineStyle(2);
-                    h_mip_line->SetLineWidth(2);
-                    // h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetRangeUser(h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->GetXmin()-100,h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->GetXmax()+100);
-                    // h_ADC_hittag0[i_layer][i_chip][i_chan]->SetBins(h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->GetXmax()- h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->GetXmin() +200,h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->GetXmin()-100,h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->GetXmax()+100);
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("ADC");
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->SetLineColor(kRed);
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->Draw();
-                    h_ADC_hittag1[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 1, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
-                    h_ADC_hittag1[i_layer][i_chip][i_chan]->Draw("histsame");
-                    c1->cd(2);
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 0, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("ADC");
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->SetLineColor(kRed);
-                    h_ADC_hittag0[i_layer][i_chip][i_chan]->Draw();
-                    c1->cd(3);
-                    h_ADC_hittag1[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 1, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
-                    h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("ADC");
-                    h_ADC_hittag1[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
-                    h_ADC_hittag1[i_layer][i_chip][i_chan]->SetLineColor(kBlue);
-                    h_ADC_hittag1[i_layer][i_chip][i_chan]->Draw();
-                    h_ped_line->Draw("same");
-                    h_mip_line->Draw("same");
-                    c1->Update();
-                    c1->Modified();
-                    c1->Write();
-                    // mkdir
-                    if (gSystem->AccessPathName(Form("Layer_%d/Chip_%d",i_layer,i_chip)))
-                    {
-                        gSystem->mkdir(Form("Layer_%d/Chip_%d",i_layer,i_chip),true);
-                    }
-                    c1->SaveAs(Form("Layer_%d/Chip_%d/hittag_%d_%d_%d.png",i_layer,i_chip,i_layer,i_chip,i_chan));
-                    c1->Write();
-                    TCanvas *c2 = new TCanvas(Form("c2_%d_%d_%d",i_layer,i_chip,i_chan),Form("c2_%d_%d_%d",i_layer,i_chip,i_chan),800,600);
-                    // c2->SetRightMargin(0.20);
-                    h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 0, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
-                    h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("Trigger ID");
-                    h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("ADC");
-                    h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->SetStats(0);
-                    h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->Draw("colz");
-                    c2->Update();
-                    c2->Modified();
-                    c2->Write();
-                    if (gSystem->AccessPathName(Form("Layer_%d/Chip_%d",i_layer,i_chip)))
-                    {
-                        gSystem->mkdir(Form("Layer_%d/Chip_%d",i_layer,i_chip),true);
-                    }
-                    c2->SaveAs(Form("Layer_%d/Chip_%d/hittag_0_ADC_TriggerID_%d_%d_%d.png",i_layer,i_chip,i_layer,i_chip,i_chan));
-                }
+                // if (i_layer==6 && i_chip == 6 || i_layer == trigger_layer0 || i_layer == trigger_layer1){
+                //     TLine* h_ped_line = new TLine(ped_time[i_layer][chip][channel],0,ped_time[i_layer][chip][channel],h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximum());
+                //     TLine* h_mip_line = new TLine(MIP[i_layer][chip][channel]+ped_time[i_layer][chip][channel],0,MIP[i_layer][chip][channel]+ped_time[i_layer][chip][channel],h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximum());
+                //     h_ped_line->SetLineColor(kBlack);
+                //     h_ped_line->SetLineStyle(2);
+                //     h_ped_line->SetLineWidth(2);
+                //     h_mip_line->SetLineColor(kGreen);
+                //     h_mip_line->SetLineStyle(2);
+                //     h_mip_line->SetLineWidth(2);
+                //     // h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetRangeUser(h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->GetXmin()-100,h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->GetXmax()+100);
+                //     // h_ADC_hittag0[i_layer][i_chip][i_chan]->SetBins(h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->GetXmax()- h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->GetXmin() +200,h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->GetXmin()-100,h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->GetXmax()+100);
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("ADC");
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->SetLineColor(kRed);
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->Draw();
+                //     h_ADC_hittag1[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 1, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
+                //     h_ADC_hittag1[i_layer][i_chip][i_chan]->Draw("histsame");
+                //     c1->cd(2);
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 0, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("ADC");
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->SetLineColor(kRed);
+                //     h_ADC_hittag0[i_layer][i_chip][i_chan]->Draw();
+                //     c1->cd(3);
+                //     h_ADC_hittag1[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 1, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
+                //     h_ADC_hittag1[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("ADC");
+                //     h_ADC_hittag1[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("Counts");
+                //     h_ADC_hittag1[i_layer][i_chip][i_chan]->SetLineColor(kBlue);
+                //     h_ADC_hittag1[i_layer][i_chip][i_chan]->Draw();
+                //     h_ped_line->Draw("same");
+                //     h_mip_line->Draw("same");
+                //     c1->Update();
+                //     c1->Modified();
+                //     c1->Write();
+                //     // mkdir
+                //     if (gSystem->AccessPathName(Form("Layer_%d/Chip_%d",i_layer,i_chip)))
+                //     {
+                //         gSystem->mkdir(Form("Layer_%d/Chip_%d",i_layer,i_chip),true);
+                //     }
+                //     c1->SaveAs(Form("Layer_%d/Chip_%d/hittag_%d_%d_%d.png",i_layer,i_chip,i_layer,i_chip,i_chan));
+                //     c1->Write();
+                //     TCanvas *c2 = new TCanvas(Form("c2_%d_%d_%d",i_layer,i_chip,i_chan),Form("c2_%d_%d_%d",i_layer,i_chip,i_chan),800,600);
+                //     // c2->SetRightMargin(0.20);
+                //     h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->SetTitle(Form("HitTag = 0, Layer %d Chip %d Channel %d",i_layer,i_chip,i_chan));
+                //     h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->GetXaxis()->SetTitle("Trigger ID");
+                //     h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->GetYaxis()->SetTitle("ADC");
+                //     h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->SetStats(0);
+                //     h_ADC_TriggerID_hittag0[i_layer][i_chip][i_chan]->Draw("colz");
+                //     c2->Update();
+                //     c2->Modified();
+                //     c2->Write();
+                //     if (gSystem->AccessPathName(Form("Layer_%d/Chip_%d",i_layer,i_chip)))
+                //     {
+                //         gSystem->mkdir(Form("Layer_%d/Chip_%d",i_layer,i_chip),true);
+                //     }
+                //     c2->SaveAs(Form("Layer_%d/Chip_%d/hittag_0_ADC_TriggerID_%d_%d_%d.png",i_layer,i_chip,i_layer,i_chip,i_chan));
+                // }
             }
         }
         h2_HitMap_layer->Write();

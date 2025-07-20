@@ -49,7 +49,7 @@ if ! [[ "$TriggerLayer1" =~ ^([0-9]|[1-3][0-9])$ ]] || ! [[ "$TriggerLayer2" =~ 
     exit 1
 fi
 ../bin/ForMuon_eff $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root muon_full.root $2 $3
-../bin/Test $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root test.root $2 $3
+# ../bin/Test $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root test.root $2 $3
 if [ $? -ne 0 ]; then
     echo "Error: Analysis script failed"
     exit 1
