@@ -34,3 +34,9 @@ cd run*
 ../bin/ForMuon_eff "The path of AHCAL data (.root)" ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root muon_run*.root 14 34
 ```
 (14 34 is the trigger layer)
+
+
+### For converting and digitization
+```bash
+../bin/convert input.gfaser_calo.root output.h5
+```
