@@ -48,8 +48,8 @@ if ! [[ "$TriggerLayer1" =~ ^([0-9]|[1-3][0-9])$ ]] || ! [[ "$TriggerLayer2" =~ 
     echo "Error: Trigger layers must be integers between 0 and 39"
     exit 1
 fi
-/afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/bin/ForMuon_eff $filename /afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/calibration/pedestal.root /afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/calibration/dac.root /afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/calibration/mip.root muon_full.root $2 $3
-/afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/bin/Test $filename /afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/calibration/pedestal.root /afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/calibration/dac.root /afs/cern.ch/user/y/ymaruya/private/FASERlink/AHCAL-analyse/calibration/mip.root test.root $2 $3
+../bin/ForMuon_eff_mul $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root muon_full.root $2
+../bin/Test $filename ../calibration/pedestal.root ../calibration/dac.root ../calibration/mip.root test.root
 if [ $? -ne 0 ]; then
     echo "Error: Analysis script failed"
     exit 1

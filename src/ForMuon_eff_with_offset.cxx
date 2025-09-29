@@ -115,6 +115,7 @@ double GetMaxXWithContent(TH1* h) {
     return -999; // 内容がない場合など
 }
 int ExcludeCh(int layer, int chip, int channel){
+    if (layer == 38 && chip == 4 && channel == 13) return 1;
     // if (layer == 0 && chip == 0) return 1;
     // if (layer == 0 && chip == 1) return 1;
     // if (chip == 7 && channel == 35) return 1;
@@ -247,14 +248,14 @@ std::tuple <double, double, double, int> FitMuonTrack_withOffset(TH2D* h2_displa
         ez1[i] = ez[i];
     }
     TGraphErrors* gr = new TGraphErrors(nHits, z1, x1, ez1, ex1);
-    gr->SetTitle("Muon Track Fit;Z [mm];X [mm]");
-    gr->SetMarkerStyle(0);
-    gr->SetMarkerSize(0);
+    // gr->SetTitle("Muon Track Fit;Z [mm];X [mm]");
+    // gr->SetMarkerStyle(0);
+    // gr->SetMarkerSize(0);
     TF1* fitLine = new TF1("fitLine", "[0]*x + [1]", 0, 1602);
     gr->Fit(fitLine, "Q");
-    gStyle->SetOptStat(0);
-    gStyle->SetStatX(1.0);
-    gStyle->SetStatY(0.9);
+    // gStyle->SetOptStat(0);
+    // gStyle->SetStatX(1.0);
+    // gStyle->SetStatY(0.9);
     // h2_display->Draw("COLZ");
     // // gr->Draw("goffsame"); 
     // fitLine->Draw("same");
@@ -269,6 +270,8 @@ std::tuple <double, double, double, int> FitMuonTrack_withOffset(TH2D* h2_displa
     // latex->DrawLatex(0.8, 0.7, Form("NHit: %d", nHits));
     std::tuple <double, double, double, int> result;
     result = std::make_tuple(fitLine->GetParameter(0), fitLine->GetParameter(1), fitLine->GetChisquare()/fitLine->GetNDF(), nHits);
+    delete gr;
+    delete fitLine;
     return result;
 }
 void AllChannelSave(const char* filename, TH1D* h_ADC_MuonTrack[Layer_No][chip_No][channel_No], TH1D* h_ADC_NotMuonTrack[Layer_No][chip_No][channel_No], std::string tag= "Save") {
@@ -376,7 +379,7 @@ void AllLayerSave(const char* filename, TH1D* h_residual_x[Layer_No], TH1D* h_re
                 legend->AddEntry(h_residual_y[i_layer], "Residual Y", "l");
             }
             legend->Draw();
-            c->SaveAs(Form("Layer_%d/Residuals.png", i_layer));
+            c->SaveAs(Form("Layer_%d/Residuals_offset.png", i_layer));
             delete c;
             delete legend;
         }
@@ -655,7 +658,7 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
                 ped_new[i_layer][i_chip][i_chan] = h_ADC_hittag0[i_layer][i_chip][i_chan]->GetBinCenter(h_ADC_hittag0[i_layer][i_chip][i_chan]->GetMaximumBin());
                 if (abs(ped_new[i_layer][i_chip][i_chan] - ped_time[i_layer][i_chip][i_chan]) > 50 && ped_new[i_layer][i_chip][i_chan] !=0.5) {
                     cout << "Pedestal shift detected: " << i_layer << " " << i_chip << " " << i_chan << " Old: " << ped_time[i_layer][i_chip][i_chan] << " New: " << ped_new[i_layer][i_chip][i_chan] << endl;
-                    ped_new[i_layer][i_chip][i_chan] = ped_time[i_layer][i_chip][i_chan];
+                    // ped_new[i_layer][i_chip][i_chan] = ped_time[i_layer][i_chip][i_chan];
                 }
             }
         }
@@ -679,7 +682,7 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
     c_triggerID->SetLogy();
     c_triggerID->SaveAs("triggerID.png");
     TH1D *h_time = new TH1D("h_time","h_time",1e9,0,1e9);
-    tree_in->Draw("Event_Time>>h_time","Event_Time<1e5");
+    tree_in->Draw("Event_Time>>h_time");
     int max_time = GetMaxXWithContent(h_time);
     cout<<"max_time = "<<max_time<<endl;
     TH1D *h_time_full = new TH1D("h_time_full","h_time_full;Event_Time",20,0, max_time+1);
@@ -722,6 +725,7 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
     TH2D *h2_skipped_Hit1 = new TH2D("h2_skipped_Hit1","h2_skipped_Hit1",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
     TH2D *h2_ratio_passMIP0 = new TH2D("h2_ratio_passMIP0","h2_ratio_passMIP0",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
     TH2D *h2_ratio_passMIP1 = new TH2D("h2_ratio_passMIP1","h2_ratio_passMIP1",18,-HBU_X*3/2,HBU_X*3/2,18,-HBU_Y/2,HBU_Y/2);
+    TH2D *h2_nHits_chi2 = new TH2D("h2_nHits_chi2","h2_nHits_chi2",100,0,100,100,0,50);
     for (int i_chip = 0; i_chip < chip_No; ++i_chip){
         for (int i_chan = 0; i_chan < channel_No; ++i_chan){
             h2_ratio_passMIP0->Fill(Pos_X(i_chan,i_chip),Pos_Y(i_chan,i_chip),
@@ -772,11 +776,11 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
         tree_in->GetEntry(i);
         // _Event_No=_triggerID;
         // _Detector_ID=1;
-        if (_triggerIDs.size() > 0 && _triggerID == _triggerIDs.back()) {
+        // if (_triggerIDs.size() > 0 && _triggerID == _triggerIDs.back()) {
             // cout << "Duplicate trigger ID: " << _triggerID << endl;
             // continue; // Skip this event if the trigger ID is a duplicate
-        }
-        _triggerIDs.push_back(_triggerID);
+        // }
+        // _triggerIDs.push_back(_triggerID);
         int m = 0;
         int trigger0_MIP_exist = 0;
         std::pair<double,double> trigger0_xy;
@@ -796,6 +800,7 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
                     nhits++;
                 }
             }
+            if (ExcludeCh(layer,chip,channel)) continue;
             if (layer == trigger_layer0){
                 if (HG_Charge->at(i_hit) > ped_new[layer][chip][channel] + 0.5 * MIP[layer][chip][channel]){
                     // hitE=( HG_Charge->at(i_hit) - ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
@@ -827,17 +832,17 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
         h_time_full_bin1->Fill(_Event_Time);
         nhits = 0;
         std::map <std::tuple<int,int,int>, int> ADC;
-        for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
-            decode_cellid(cellID->at(i_hit),layer,chip,channel);
-            if (ExcludeCh(layer,chip,channel)) continue;
-            if (hitTag->at(i_hit) == 1){
-                if (ADC.find(std::make_tuple(layer,chip,channel)) == ADC.end()){
-                    ADC[std::make_tuple(layer,chip,channel)] = HG_Charge->at(i_hit) - ped_new[layer][chip][channel];
-                }else{
-                    std::cout << "ADC exist error: " << layer << " " << chip << " " << channel << std::endl;
-                }
-            }
-        }
+        // for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
+        //     decode_cellid(cellID->at(i_hit),layer,chip,channel);
+        //     if (ExcludeCh(layer,chip,channel)) continue;
+        //     if (hitTag->at(i_hit) == 1){
+        //         if (ADC.find(std::make_tuple(layer,chip,channel)) == ADC.end()){
+        //             ADC[std::make_tuple(layer,chip,channel)] = HG_Charge->at(i_hit) - ped_new[layer][chip][channel];
+        //         }else{
+        //             std::cout << "ADC exist error: " << layer << " " << chip << " " << channel << std::endl;
+        //         }
+        //     }
+        // }
         if ((trigger0_MIP_exist > 0 && trigger1_MIP_exist > 0)){
             MuonCandidate.push_back(i);
             std::map <std::tuple<int,int,int>, bool> MIP_exist;
@@ -869,22 +874,24 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
                     }
                 }
             }
-
-            TCanvas *c_2D = new TCanvas("c_2D", "c_2D", 48, 130, 1000, 723);
-
-            c_2D->Divide(1,2);
-
-            c_2D->cd(1)->SetRightMargin(0.3);
-            // gStyle->SetOptStat(0);
-            TH2D *h2_display_zx=new TH2D("display_zy","display_zy",534,0,1602,18,-9*40.3,9*40.3);
+            std::unique_ptr<TH2D> h2_display_zx(new TH2D("display_zx","display_zx",534,0,1602,18,-9*40.3,9*40.3));
+            std::unique_ptr<TH2D> h2_display_zy(new TH2D("display_zy","display_zy",534,0,1602,18,-9*40.3,9*40.3));
+            // std::unique_ptr<TCanvas> c_2D(new TCanvas("c_2D", "c_2D", 48, 130, 1000, 723));
+            
             h2_display_zx->SetDirectory(0);
+            h2_display_zy->SetDirectory(0);
+            // TCanvas *c_2D = new TCanvas("c_2D", "c_2D", 48, 130, 1000, 723);
+
+            // c_2D->Divide(1,2);
+            // c_2D->cd(1)->SetRightMargin(0.3);
+            // gStyle->SetOptStat(0);
             // h2_display_zx->GetXaxis()->SetRangeUser(0,800);
-            h2_display_zx->GetXaxis()->SetTitle("Z [mm]");
-            h2_display_zx->GetYaxis()->SetTitle("X [mm]");
+            // h2_display_zx->GetXaxis()->SetTitle("Z [mm]");
+            // h2_display_zx->GetYaxis()->SetTitle("X [mm]");
             // h2_display_zx->GetXaxis()->SetTitleOffset(1.2);
             // h2_display_zx->GetYaxis()->SetTitleOffset(1.2);
-            h2_display_zx->GetXaxis()->SetTitleSize(0.05);
-            h2_display_zx->GetYaxis()->SetTitleSize(0.05);
+            // h2_display_zx->GetXaxis()->SetTitleSize(0.05);
+            // h2_display_zx->GetYaxis()->SetTitleSize(0.05);
             for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
                 decode_cellid(cellID->at(i_hit),layer,chip,channel);
                 double hitE=0;
@@ -899,8 +906,9 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
             h2_display_zx->SetTitle(Form("Event %d",i));
             // h2_display_zx->GetYaxis()->SetRangeUser(0,1000);
             // h2_display_zx->Draw("colz");
-            std::tuple <double,double,double, int> fit_result = FitMuonTrack_withOffset(h2_display_zx, x_offset);
+            std::tuple <double,double,double, int> fit_result = FitMuonTrack_withOffset(h2_display_zx.get(), x_offset);
             h_chi2perndf_x->Fill(std::get<2>(fit_result));
+            h2_nHits_chi2->Fill(nhits, std::get<2>(fit_result));
             h_nHits->Fill(nhits);
             h_slope_x->Fill(std::get<0>(fit_result));
             h_intercept_x->Fill(std::get<1>(fit_result));
@@ -911,19 +919,18 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
             // FitMuonTrack(h2_display_zx);
             // c2->SaveAs(Form("MuonCandidate.pdf",i));
             // c_2D->cd(2);
-            c_2D->cd(2)->SetRightMargin(0.3);
-            TH2D *h2_display_zy=new TH2D("display_zy","display_zy",534,0,1602,18,-9*40.3,9*40.3);
-            h2_display_zy->SetDirectory(0);
+            // c_2D->cd(2)->SetRightMargin(0.3);
             // h2_display_zy->GetXaxis()->SetRangeUser(0,800);
-            h2_display_zy->GetXaxis()->SetTitle("Z [mm]");
-            h2_display_zy->GetYaxis()->SetTitle("Y [mm]");
+            // h2_display_zy->GetXaxis()->SetTitle("Z [mm]");
+            // h2_display_zy->GetYaxis()->SetTitle("Y [mm]");
             // h2_display_zy->GetXaxis()->SetTitleOffset(1.2);
             // h2_display_zy->GetYaxis()->SetTitleOffset(1.2);
-            h2_display_zy->GetXaxis()->SetTitleSize(0.05);
-            h2_display_zy->GetYaxis()->SetTitleSize(0.05);
+            // h2_display_zy->GetXaxis()->SetTitleSize(0.05);
+            // h2_display_zy->GetYaxis()->SetTitleSize(0.05);
             for (int i_hit = 0; i_hit < cellID->size(); ++i_hit){
                 decode_cellid(cellID->at(i_hit),layer,chip,channel);
                 double hitE=0;
+                if (ExcludeCh(layer,chip,channel)) continue;
                 hitE=( HG_Charge->at(i_hit) -ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
                 // Apply y_offset for layer-specific offset correction
                 double y_corrected = Pos_Y(channel,chip);
@@ -933,7 +940,7 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
             // h2_display_zy->GetYaxis()->SetRangeUser(0,1000);
             // h2_display_zy->Draw("colz");
             // FitMuonTrack(h2_display_zy);
-            std::tuple <double,double,double, int> fit_result2 = FitMuonTrack_withOffset(h2_display_zy, y_offset);
+            std::tuple <double,double,double, int> fit_result2 = FitMuonTrack_withOffset(h2_display_zy.get(), y_offset);
             h_chi2perndf_y->Fill(std::get<2>(fit_result2));
             // h_nHits_y->Fill(std::get<3>(fit_result2));
             h_slope_y->Fill(std::get<0>(fit_result2));
@@ -961,8 +968,8 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
             // c_2D->SaveAs(Form("MuonCandidate_%d.png",i));
             //denominator events
             // if ( trigger0_MIP_exist == 1 && trigger1_MIP_exist == 1 && 
-            if ( std::get<2>(fit_result) < 5 && std::get<2>(fit_result2) < 5 &&
-                std::get<2>(fit_result) > 0.5 && std::get<2>(fit_result2) > 0.5){
+            if ( std::get<2>(fit_result) < 5 && std::get<2>(fit_result2) < 5
+                && nhits >= abs(trigger_layer0 - trigger_layer1) +1){
                 // abs(trigger_layer0_x - trigger0_xy.first) < 20 &&
                 // abs(trigger_layer0_y - trigger0_xy.second) < 20 &&
                 // abs(trigger_layer1_x - trigger1_xy.first) < 20 &&
@@ -983,7 +990,7 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
                         if ( abs(x_expected) > HBU_X*1.5 || abs(y_expected) > HBU_Y*0.5) continue;
                         inverse(x_expected,y_expected,chip,channel);
                         if (chip < 0 || chip >= chip_No || channel < 0 || channel >= channel_No) continue;
-                        if ( abs(x_expected - i*40.3-std::copysign(1,x_expected)*20.15) <  19 && abs(y_expected - j*40.3-std::copysign(1,y_expected)*20.15) < 19) {
+                        if ( abs(x_expected - Pos_X(channel,chip)) <  17 && abs(y_expected - Pos_Y(channel,chip)) < 17) {
                                                         // if (ExcludeCh(i_layer,chip,channel)) continue;
                             bool is_MIP = false;
                             if (MIP_exist.find(std::make_tuple(i_layer,chip,channel)) != MIP_exist.end()){
@@ -1036,9 +1043,7 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
                     }
 
             }
-            delete c_2D;
-            delete h2_display_zx;
-            delete h2_display_zy;
+            // delete c_2D;
             MIP_exist.clear();
             Hit_exist.clear();
         }
@@ -1361,8 +1366,10 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
     h_time_MuonCandidate->Write();
     h_time_full_bin1->Write();
     h_time_MuonCandidate_bin1->Write();
+    h2_nHits_chi2->Write();
     efficiency->Write();
     efficiency3->Write();
+    efficiency4->Write();
     h2_MIP_double0->Write();
     h2_MIP_double1->Write();
     h2_skipped_Hit0->Write();
@@ -1381,8 +1388,8 @@ int raw2Root::forMuon_eff_with_offset(string str_dat, string str_ped, string str
     
     for (int i = 0; i < 40; ++i) {
         layer_id = i;
-        x_offset_val = x2_offset[i];
-        y_offset_val = y2_offset[i];
+        x_offset_val = x2_offset[i] + x_offset[i]; // Add the original offset
+        y_offset_val = y2_offset[i] + y_offset[i]; // Add the original offset
         offset_tree->Fill();
     }
     

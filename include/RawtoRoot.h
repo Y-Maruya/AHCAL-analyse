@@ -49,13 +49,13 @@ public:
     int Test(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file, int trigger_layer0, int trigger_layer1);
     int forMuon(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file);
     int forMuon_eff(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1);
-    
+    int forMuon_eff_mul(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file, string trigger_logic);
     // Muon efficiency analysis with residual calculation - calculates layer offsets
     int forMuon_eff_residual(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1);
     
     // Muon efficiency analysis with offset correction applied - uses pre-calculated offsets
     int forMuon_eff_with_offset(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1, double* x_offset, double* y_offset);
-    
+    int forMuon_MC(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1, double* x_offset, double* y_offset);
     int Digitize(string str_dat, string str_ped, string str_dac, string str_MIP, string str_SPE, string str_lowgain_dac, string sipm_model, string output_file);
     int digi(double energy, double sipm_energy, double &HG, double &LG, int i);
     double digi_cal(double energy, double sipm_energy, double &HG, double &LG, int i);
@@ -82,7 +82,7 @@ public:
     int MIP(vector<int> *_cellid, vector<double> *_HG_Charge);
     int MIP(vector<int> *_cellid, vector<int> *hitTag);
     int MIP(vector<int> *_cellid, vector<int> *hitTag, vector<double> *_HG_Charge, vector<int> *noise_cellid, vector<double> *noise_hit);
-
+    
 private:
     //    Event* EventClass;
     ifstream _f_in;

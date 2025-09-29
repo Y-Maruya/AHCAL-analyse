@@ -16,9 +16,12 @@
 #include <TF1.h>
 #include <TH1.h>
 #include <TStyle.h>
+#include <regex>
+#include <sstream>
 #include "TMath.h"
 #include "TRandom.h"
 #include <TSpectrum.h>
+#include <set>
 #include "TLegend.h"
 #include "TLine.h"
 #include "TVirtualFitter.h"
@@ -37,9 +40,8 @@ Int_t main(int argc,char *argv[])
 {
     double start = clock();
     raw2Root tw;
-    int trigger_layer0 = std::stoi(argv[6]);
-    int trigger_layer1 = std::stoi(argv[7]);
-    tw.forMuon_eff(argv[1],argv[2],argv[3],argv[4],argv[5], trigger_layer0, trigger_layer1);
+    string triggerlogic=argv[6];
+    tw.forMuon_eff_mul(argv[1],argv[2],argv[3],argv[4],argv[5], triggerlogic);
     double end = clock();
     cout<<"end of RawToRoot : Time : "<<(end-start)/CLOCKS_PER_SEC<<endl;
     return 0;
@@ -107,25 +109,170 @@ std::tuple <double, double, double, int> FitMuonTrack(TH2D* h2_display) {
     gStyle->SetOptStat(0);
     gStyle->SetStatX(1.0);
     gStyle->SetStatY(0.9);
-    h2_display->Draw("COLZ");
-    // gr->Draw("goffsame"); 
-    fitLine->Draw("same");
-    TLatex *latex = new TLatex();
-    latex->SetTextSize(0.03);
-    latex->SetTextColor(kRed);
-    latex->SetNDC();
-    latex->DrawLatex(0.8, 0.9, Form("Slope: %.2f", fitLine->GetParameter(0)));
-    latex->DrawLatex(0.8, 0.85, Form("Intercept: %.2f", fitLine->GetParameter(1)));
-    latex->DrawLatex(0.8, 0.8, Form("Chi2/NDF: %.2f", fitLine->GetChisquare()/fitLine->GetNDF()));
-    latex->DrawLatex(0.8, 0.75, Form("NDF: %d", fitLine->GetNDF()));
-    latex->DrawLatex(0.8, 0.7, Form("NHit: %d", nHits));
+    // h2_display->Draw("COLZ");
+    // // gr->Draw("goffsame"); 
+    // fitLine->Draw("same");
+    // TLatex *latex = new TLatex();
+    // latex->SetTextSize(0.03);
+    // latex->SetTextColor(kRed);
+    // latex->SetNDC();
+    // latex->DrawLatex(0.8, 0.9, Form("Slope: %.2f", fitLine->GetParameter(0)));
+    // latex->DrawLatex(0.8, 0.85, Form("Intercept: %.2f", fitLine->GetParameter(1)));
+    // latex->DrawLatex(0.8, 0.8, Form("Chi2/NDF: %.2f", fitLine->GetChisquare()/fitLine->GetNDF()));
+    // latex->DrawLatex(0.8, 0.75, Form("NDF: %d", fitLine->GetNDF()));
+    // latex->DrawLatex(0.8, 0.7, Form("NHit: %d", nHits));
     std::tuple <double, double, double, int> result;
     result = std::make_tuple(fitLine->GetParameter(0), fitLine->GetParameter(1), fitLine->GetChisquare()/fitLine->GetNDF(), nHits);
     return result;
 }
-int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string str_MIP,string output_file, int trigger_layer0, int trigger_layer1){
+struct TriggerCondition {
+    std::vector<int> layers;
+    bool isAND;  // true for AND, false for single layer
+};
+
+std::vector<TriggerCondition> parseTriggerLogic(const std::string& logic) {
+    std::vector<TriggerCondition> conditions;
+    
+    // Remove spaces and outer parentheses
+    std::string cleaned = logic;
+    cleaned.erase(std::remove(cleaned.begin(), cleaned.end(), ' '), cleaned.end());
+    
+    // Split by OR (||) operators
+    std::regex orRegex("\\|\\|");
+    std::sregex_token_iterator iter(cleaned.begin(), cleaned.end(), orRegex, -1);
+    std::sregex_token_iterator end;
+    
+    for (; iter != end; ++iter) {
+        std::string term = *iter;
+        
+        // Remove parentheses
+        term.erase(std::remove(term.begin(), term.end(), '('), term.end());
+        term.erase(std::remove(term.begin(), term.end(), ')'), term.end());
+        
+        TriggerCondition condition;
+        
+        // Check if it contains AND (&& or &)
+        if (term.find("&&") != std::string::npos || term.find("&") != std::string::npos) {
+            condition.isAND = true;
+            
+            // Split by AND operators
+            std::regex andRegex("&+");
+            std::sregex_token_iterator andIter(term.begin(), term.end(), andRegex, -1);
+            std::sregex_token_iterator andEnd;
+            
+            for (; andIter != andEnd; ++andIter) {
+                std::string layerStr = *andIter;
+                if (!layerStr.empty()) {
+                    condition.layers.push_back(std::stoi(layerStr));
+                }
+            }
+        } else {
+            // Single layer condition
+            condition.isAND = false;
+            if (!term.empty()) {
+                condition.layers.push_back(std::stoi(term));
+            }
+        }
+        
+        if (!condition.layers.empty()) {
+            conditions.push_back(condition);
+        }
+    }
+    
+    return conditions;
+}
+
+bool evaluateTrigger(const std::vector<TriggerCondition>& conditions, 
+                    const std::vector<int>& activeLayers) {
+    
+    // Convert activeLayers to a set for faster lookup
+    std::set<int> activeSet(activeLayers.begin(), activeLayers.end());
+    
+    // OR logic between conditions - if any condition is true, trigger fires
+    for (const auto& condition : conditions) {
+        if (condition.isAND) {
+            // AND logic - all layers in this condition must be active
+            bool allActive = true;
+            for (int layer : condition.layers) {
+                if (activeSet.find(layer) == activeSet.end()) {
+                    allActive = false;
+                    break;
+                }
+            }
+            if (allActive) {
+                return true;  // This OR condition is satisfied
+            }
+        } else {
+            // Single layer condition
+            if (activeSet.find(condition.layers[0]) != activeSet.end()) {
+                return true;  // This OR condition is satisfied
+            }
+        }
+    }
+    
+    return false;  // No OR condition was satisfied
+}
+
+void printTriggerLogic(const std::vector<TriggerCondition>& conditions) {
+    std::cout << "Parsed trigger logic:" << std::endl;
+    for (size_t i = 0; i < conditions.size(); ++i) {
+        std::cout << "Condition " << i + 1 << ": ";
+        if (conditions[i].isAND) {
+            std::cout << "AND of layers ";
+            for (size_t j = 0; j < conditions[i].layers.size(); ++j) {
+                std::cout << conditions[i].layers[j];
+                if (j < conditions[i].layers.size() - 1) std::cout << " & ";
+            }
+        } else {
+            std::cout << "Layer " << conditions[i].layers[0];
+        }
+        std::cout << std::endl;
+    }
+}
+
+// Add this function to test different trigger logics
+void testTriggerLogic() {
+    // Test cases
+    std::vector<std::string> testLogics = {
+        "((0&&1)||(10&&14)||(34&&38))",
+        "(0&1)|(2&3)",
+        "0||1||2",
+        "(0&&1&&2)||(3&&4)"
+    };
+    
+    std::vector<std::vector<int>> testActiveLayers = {
+        {0, 1, 5, 7},        // Should trigger first condition
+        {10, 14, 20},        // Should trigger second condition  
+        {34, 38, 40},        // Should trigger third condition
+        {2, 5, 8},           // Should not trigger
+        {0, 1, 10, 14},      // Should trigger multiple conditions
+        {1, 2, 3}            // Depends on logic
+    };
+    
+    for (const auto& logic : testLogics) {
+        std::cout << "\n=== Testing logic: " << logic << " ===" << std::endl;
+        auto conditions = parseTriggerLogic(logic);
+        printTriggerLogic(conditions);
+        
+        for (const auto& activeLayers : testActiveLayers) {
+            bool result = evaluateTrigger(conditions, activeLayers);
+            std::cout << "Active layers: ";
+            for (int layer : activeLayers) std::cout << layer << " ";
+            std::cout << " -> Trigger: " << (result ? "FIRE" : "NO") << std::endl;
+        }
+    }
+}
+
+
+
+
+
+
+int raw2Root::forMuon_eff_mul(string str_dat,string str_ped,string str_dac,string str_MIP,string output_file, string trigger_logic){
     //string str_root=find_datname(str_in);
     //string str_out=outputDir+"/"+"cos_ana.root";
+    int trigger_layer0 = 4;
+    int trigger_layer1 = 14;
     string str_out=output_file;
     TFile *fin,*fout;
     TTree *tree_in,*tree_out;
@@ -372,7 +519,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             trigger_layer_hit[layer]++;
 
         }
-        h2_trigger_layer_hit->Fill(trigger_layer_hit[trigger_layer0],trigger_layer_hit[trigger_layer1]);
+        // h2_trigger_layer_hit->Fill(trigger_layer_hit[trigger_layer0],trigger_layer_hit[trigger_layer1]);
         h_Edep->Fill(Edep/1000.);
         for (int i_c = 0; i_c < cherenkov->size(); ++i_c){
             if((cherenkov->size())!=2)cout<<"abnormal cherenkov "<<i<<" "<<cherenkov->size()<<endl;
@@ -394,7 +541,8 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             }
         }
     }
-    // require the 0.8 MIP signal exist on the trigger layer
+    
+    // require the 0.5 MIP signal exist on the trigger layer
     std::vector<int> MuonCandidate;
     // std::vector<double> zx_chi2;
     // std::vector<double> zy_chi2;
@@ -485,6 +633,7 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
         int trigger0_MIP_exist = 0;
         std::pair<double,double> trigger0_xy;
         int trigger1_MIP_exist = 0;
+        std::vector<int> trigger_MIP_exists;
         std::pair<double,double> trigger1_xy;
         std::vector<std::pair<int,int> > trigger0_chip_channel;
         std::vector<std::pair<int,int> > trigger1_chip_channel;
@@ -500,38 +649,44 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
                     nhits++;
                 }
             }
-            if (layer == trigger_layer0){
-                if (HG_Charge->at(i_hit) > ped_new[layer][chip][channel] + 0.5 * MIP[layer][chip][channel]){
-                    // hitE=( HG_Charge->at(i_hit) - ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                    trigger0_MIP_exist++;
-                    trigger0_xy = std::make_pair(Pos_X(channel,chip),Pos_Y(channel,chip));
-                    trigger0_chip_channel.push_back(std::make_pair(chip,channel));
-                }else{
-                    // cout << "Skipped Hit in trigger layer 0: " << layer << " " << chip << " " << channel << endl;
-                    if (hitTag->at(i_hit) == 1) h2_skipped_Hit0->Fill(Pos_X(channel,chip),Pos_Y(channel,chip));
+            if (HG_Charge->at(i_hit) > ped_new[layer][chip][channel] + 0.5 * MIP[layer][chip][channel]){
+                if(std::find(trigger_MIP_exists.begin(), trigger_MIP_exists.end(), layer) == trigger_MIP_exists.end()){
+                    trigger_MIP_exists.push_back(layer);
                 }
-
-            }else if (layer == trigger_layer1){
-                if (HG_Charge->at(i_hit) > ped_new[layer][chip][channel] + 0.5 * MIP[layer][chip][channel]){
-                    // hitE=( HG_Charge->at(i_hit) - ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
-                    trigger1_MIP_exist++;
-                    trigger1_xy = std::make_pair(Pos_X(channel,chip),Pos_Y(channel,chip));
-                    trigger1_chip_channel.push_back(std::make_pair(chip,channel));
-                }else{
-                    // cout << "Skipped Hit in trigger layer 1: " << layer << " " << chip << " " << channel << endl;
-                    if (hitTag->at(i_hit) == 1) h2_skipped_Hit1->Fill(Pos_X(channel,chip),Pos_Y(channel,chip));
-                }
-            }else{
-                continue;
             }
+            // if (layer == trigger_layer0){
+            //     if (HG_Charge->at(i_hit) > ped_new[layer][chip][channel] + 0.5 * MIP[layer][chip][channel]){
+            //         // hitE=( HG_Charge->at(i_hit) - ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
+            //         trigger0_MIP_exist++;
+            //         trigger0_xy = std::make_pair(Pos_X(channel,chip),Pos_Y(channel,chip));
+            //         trigger0_chip_channel.push_back(std::make_pair(chip,channel));
+            //     }else{
+            //         // cout << "Skipped Hit in trigger layer 0: " << layer << " " << chip << " " << channel << endl;
+            //         if (hitTag->at(i_hit) == 1) h2_skipped_Hit0->Fill(Pos_X(channel,chip),Pos_Y(channel,chip));
+            //     }
+
+            // }else if (layer == trigger_layer1){
+            //     if (HG_Charge->at(i_hit) > ped_new[layer][chip][channel] + 0.5 * MIP[layer][chip][channel]){
+            //         // hitE=( HG_Charge->at(i_hit) - ped_new[layer][chip][channel] )*MIP_E/MIP[layer][chip][channel];
+            //         trigger1_MIP_exist++;
+            //         trigger1_xy = std::make_pair(Pos_X(channel,chip),Pos_Y(channel,chip));
+            //         trigger1_chip_channel.push_back(std::make_pair(chip,channel));
+            //     }else{
+            //         // cout << "Skipped Hit in trigger layer 1: " << layer << " " << chip << " " << channel << endl;
+            //         if (hitTag->at(i_hit) == 1) h2_skipped_Hit1->Fill(Pos_X(channel,chip),Pos_Y(channel,chip));
+            //     }
+            // }else{
+            //     continue;
+            // }
         }
         h_nHits_full->Fill(nhits);
         h_triggerID_full->Fill(_triggerID);
         h_time_full->Fill(_Event_Time);
         h_time_full_bin1->Fill(_Event_Time);
         nhits = 0;
-
-        if ((trigger0_MIP_exist > 0 && trigger1_MIP_exist > 0)){
+        std::vector<TriggerCondition> trigger_conditions = parseTriggerLogic(trigger_logic);
+        if (evaluateTrigger(trigger_conditions, trigger_MIP_exists)){
+        // if ((trigger0_MIP_exist > 0 && trigger1_MIP_exist > 0)){
             MuonCandidate.push_back(i);
             std::map <std::tuple<int,int,int>, bool> MIP_exist;
             std::map <std::tuple<int,int,int>, bool> Hit_exist;
@@ -648,27 +803,27 @@ int raw2Root::forMuon_eff(string str_dat,string str_ped,string str_dac,string st
             h_triggerID_MuonCandidate->Fill(_triggerID);
             h_time_MuonCandidate->Fill(_Event_Time);
             h_time_MuonCandidate_bin1->Fill(_Event_Time);
-            c_2D->SaveAs("MuonCandidate2.pdf");
+            // c_2D->SaveAs("MuonCandidate2.pdf");
             // c_2D->SaveAs(Form("MuonCandidate_%d.png",i));
             //denominator events
-            if (trigger0_MIP_exist > 1 || trigger1_MIP_exist > 1){
-                std::cout << "Trigger Layer has several Hits: " << trigger0_MIP_exist << " " << trigger1_MIP_exist << std::endl;
-                std::cout << "Trigger Layer 0: " << trigger_layer0_x << " " << trigger_layer0_y << std::endl;
-                int channel0 = 0;
-                int chip0 = 0;
-                inverse(trigger_layer0_x, trigger_layer0_y, chip0, channel0);
-                std::cout << "Trigger Layer 0 Inverse: " << chip0 << " " << channel0 << std::endl;
-                int channel1 = 0;
-                int chip1 = 0;
-                inverse(trigger_layer1_x, trigger_layer1_y, chip1, channel1);
-                std::cout << "Trigger Layer 1 Inverse: " << chip1 << " " << channel1 << std::endl;
-                if (trigger0_MIP_exist>1){
-                    h2_MIP_double0->Fill(trigger_layer0_x, trigger_layer0_y);
-                }
-                if (trigger1_MIP_exist>1){
-                    h2_MIP_double1->Fill(trigger_layer1_x, trigger_layer1_y);
-                }
-            }
+            // if (trigger0_MIP_exist > 1 || trigger1_MIP_exist > 1){
+            //     std::cout << "Trigger Layer has several Hits: " << trigger0_MIP_exist << " " << trigger1_MIP_exist << std::endl;
+            //     std::cout << "Trigger Layer 0: " << trigger_layer0_x << " " << trigger_layer0_y << std::endl;
+            //     int channel0 = 0;
+            //     int chip0 = 0;
+            //     inverse(trigger_layer0_x, trigger_layer0_y, chip0, channel0);
+            //     std::cout << "Trigger Layer 0 Inverse: " << chip0 << " " << channel0 << std::endl;
+            //     int channel1 = 0;
+            //     int chip1 = 0;
+            //     inverse(trigger_layer1_x, trigger_layer1_y, chip1, channel1);
+            //     std::cout << "Trigger Layer 1 Inverse: " << chip1 << " " << channel1 << std::endl;
+            //     if (trigger0_MIP_exist>1){
+            //         h2_MIP_double0->Fill(trigger_layer0_x, trigger_layer0_y);
+            //     }
+            //     if (trigger1_MIP_exist>1){
+            //         h2_MIP_double1->Fill(trigger_layer1_x, trigger_layer1_y);
+            //     }
+            // }
             if ( trigger0_MIP_exist == 1 && trigger1_MIP_exist == 1 && 
                 std::get<2>(fit_result) < 5 && std::get<2>(fit_result2) < 5 &&
                 abs(trigger_layer0_x - trigger0_xy.first) < 20 &&
