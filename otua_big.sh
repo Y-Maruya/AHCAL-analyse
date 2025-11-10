@@ -2,6 +2,5 @@
 
 for runnumber in "$@"; do
     echo "Processing run number: $runnumber"
-    ./auto.sh $runnumber
-    ./auto_fT.sh $runnumber 1 8 
+    ./auto_big.sh $runnumber
 done

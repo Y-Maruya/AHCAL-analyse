@@ -55,6 +55,8 @@ public:
     
     // Muon efficiency analysis with offset correction applied - uses pre-calculated offsets
     int forMuon_eff_with_offset(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1, double* x_offset, double* y_offset);
+    int forMuon_eff_with_offset_trackSave(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1, double* x_offset, double* y_offset);
+    int forMuon_eff_with_offset_perchip(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1, double* x_offset, double* y_offset);
     int forMuon_MC(string str_dat, string str_ped, string str_dac, string str_MIP, string output_file,int trigger_layer0, int trigger_layer1, double* x_offset, double* y_offset);
     int Digitize(string str_dat, string str_ped, string str_dac, string str_MIP, string str_SPE, string str_lowgain_dac, string sipm_model, string output_file);
     int digi(double energy, double sipm_energy, double &HG, double &LG, int i);
@@ -79,6 +81,7 @@ public:
     int MIPlist(const string _list);
     int PEDlist(const string _list,const string ishittag=0);
     int MIPlist(const string _list, string pedestal);
+    int MIPlist2(const string _list);
     int MIP(vector<int> *_cellid, vector<double> *_HG_Charge);
     int MIP(vector<int> *_cellid, vector<int> *hitTag);
     int MIP(vector<int> *_cellid, vector<int> *hitTag, vector<double> *_HG_Charge, vector<int> *noise_cellid, vector<double> *noise_hit);

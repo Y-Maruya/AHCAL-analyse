@@ -1,0 +1,10 @@
+executable     = auto.sh
+arguments     = 215
+log            = logs/$(ClusterId).log
+error          = err/$(ClusterId).stderr
+output         = out/$(ClusterId).stdout
++JobFlavour      = "workday"
+
+# transfer_input_files = ../AHCAL-data-EHN1/AHCAL_Run32_20251017_183138.dat
+queue
+#module load lxbatch/eossubmit

@@ -2,11 +2,11 @@
 InputRunNumber=$1
 # DatDataPath="/eos/user/s/shunlian/AHCAL/data/stable_7_17/"
 # DatDataPath="/eos/user/y/yanghe/datfiles/"
-DatDataPath="/eos/user/y/ymaruya/FASER/AHCAL-data-EHN1/"
+DatDataPath="/eos/user/y/ymaruya/FASER/AHCAL-data-EHN1/AHCAL_Run32_20251017_183138/"
 # DatDataPath="/afs/cern.ch/user/g/gjinjing/public/ahcal/"
 get_run_file() {
     local run_number=$1
-    local file=$(ls ${DatDataPath}AHCAL_Run${run_number}*.dat 2>/dev/null | head -n 1)
+    local file=$(ls ${DatDataPath}part_${run_number}.bin 2>/dev/null | head -n 1)
     if [[ -n "$file" ]]; then
         echo "$file"
     else
@@ -28,7 +28,8 @@ fi
 filename=$(get_run_file "$InputRunNumber")
 if [ $? -ne 0 ]; then
     echo "Error: Could not find data file for RunNumber $InputRunNumber"
-    return 3
+    # exit 2
+    return 1
 fi
 echo "Found data file: $filename"
 
@@ -42,7 +43,7 @@ echo "$filename" > list_cosmic.txt
 
 if [ $? -ne 0 ]; then
     echo "Error: Analysis script failed"
-    return 3
+    return 1
 fi
 echo "Analysis completed successfully."
 cd "$PWD"
